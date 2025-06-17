@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Firebase configuration sử dụng environment variables
+// Tự động fallback về placeholder values nếu không có env vars
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "your-api-key-here",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "your-project-id.firebaseapp.com",
@@ -10,6 +11,27 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "your-sender-id",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "your-app-id"
 };
+
+// Kiểm tra xem có environment variables hay không
+const hasValidConfig = import.meta.env.VITE_FIREBASE_API_KEY && 
+                      import.meta.env.VITE_FIREBASE_PROJECT_ID;
+
+if (!hasValidConfig) {
+  console.warn(`
+🔥 Firebase Configuration Warning:
+Environment variables not found. Please create .env.local file with your Firebase config.
+
+Required variables:
+- VITE_FIREBASE_API_KEY
+- VITE_FIREBASE_AUTH_DOMAIN  
+- VITE_FIREBASE_PROJECT_ID
+- VITE_FIREBASE_STORAGE_BUCKET
+- VITE_FIREBASE_MESSAGING_SENDER_ID
+- VITE_FIREBASE_APP_ID
+
+Copy env.example to .env.local and fill in your Firebase project details.
+  `);
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "migrate:categories": "node scripts/migrate-categories-simple.js",
     "deploy:setup": "node scripts/deploy-setup.js",
-    "deploy:check": "npm run build && npm run preview"
+    "deploy:check": "npm run build && npm run preview",
+    "setup:check": "node scripts/deploy-setup.js"
   },
   "dependencies": {
     "react": "^18.2.0",

@@ -44,8 +44,6 @@ firebase-config.js
 .firebaserc
 
 # Firebase config files (contains sensitive API keys)
-src/config/firebase.js
-src/config/firebase.config.js
 firebase-adminsdk-*.json
 
 # Temporary files

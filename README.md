@@ -57,28 +57,39 @@ npm install
 ```
 
 ### 3. Cấu hình Firebase
+
+#### Bước 3.1: Tạo Firebase Project
 1. Tạo project mới trên [Firebase Console](https://console.firebase.google.com/)
-2. Tạo Firestore Database
-3. **Setup Firebase config**:
+2. Tạo Firestore Database với chế độ "Start in test mode"
+
+#### Bước 3.2: Setup Environment Variables
+1. **Tạo file `.env.local`:**
    ```bash
-   # Sao chép file example
-   cp src/config/firebase.example.js src/config/firebase.js
+   # Tạo file environment variables cho development
+   touch .env.local
    ```
-4. Vào Firebase Console > Project Settings > General > Your apps
-5. Copy Firebase config và thay thế trong `src/config/firebase.js`:
 
-```javascript
-const firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-project-id.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project-id.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
-};
-```
+2. **Lấy Firebase Config từ Console:**
+   - Vào Firebase Console > Project Settings > General > Your apps
+   - Chọn web app và copy Firebase configuration
+   - Điền vào file `.env.local`:
 
-⚠️ **Lưu ý**: File `firebase.js` đã được thêm vào `.gitignore` để bảo mật API keys
+   ```env
+   # Firebase Configuration
+   VITE_FIREBASE_API_KEY=your-actual-api-key
+   VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project-id
+   VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+   VITE_FIREBASE_APP_ID=your-app-id
+   ```
+
+✅ **Tự động**: File `firebase.js` sẽ tự động đọc từ environment variables.
+
+⚠️ **Bảo mật**: 
+- File `.env.local` và `firebase.js` đã được thêm vào `.gitignore`
+- Không commit API keys lên Git
+- Dùng environment variables cho production
 
 ### 4. Cấu hình Firestore Security Rules
 Áp dụng rules sau trong Firebase Console > Firestore Database > Rules:

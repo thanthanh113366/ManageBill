@@ -21,7 +21,7 @@ function checkRequiredFiles() {
     'package.json',
     'vite.config.js',
     'vercel.json',
-    'src/config/firebase.example.js'
+    'src/config/firebase.js'
   ];
 
   console.log('📋 Kiểm tra các file cần thiết...');
@@ -38,30 +38,28 @@ function checkRequiredFiles() {
   console.log('✅ Tất cả file cần thiết đã có\n');
 }
 
-// Kiểm tra environment variables template
+// Kiểm tra environment variables setup
 function checkEnvTemplate() {
-  console.log('🔧 Kiểm tra template environment variables...');
+  console.log('🔧 Kiểm tra environment variables setup...');
   
-  const envTemplate = `# Environment Variables cho Vercel Deployment
-# Copy các giá trị này vào Vercel Dashboard > Project Settings > Environment Variables
-
-VITE_FIREBASE_API_KEY=your-api-key-here
-VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-VITE_FIREBASE_APP_ID=your-app-id
-
-# Lưu ý: Thay thế "your-*" bằng giá trị thực từ Firebase Console`;
-
-  const envPath = path.join(rootDir, '.env.vercel.example');
-  
-  if (!fs.existsSync(envPath)) {
-    fs.writeFileSync(envPath, envTemplate);
-    console.log('✅ Đã tạo .env.vercel.example');
+  // Kiểm tra .env.local
+  const envLocalPath = path.join(rootDir, '.env.local');
+  if (fs.existsSync(envLocalPath)) {
+    console.log('✅ .env.local đã được tạo');
   } else {
-    console.log('✅ .env.vercel.example đã tồn tại');
+    console.log('❌ .env.local chưa được tạo');
+    console.log('   Tạo file .env.local với Firebase config của bạn');
   }
+
+  // Kiểm tra firebase config
+  const firebaseConfigPath = path.join(rootDir, 'src/config/firebase.js');
+  if (fs.existsSync(firebaseConfigPath)) {
+    console.log('✅ firebase.js đã được tạo');
+  } else {
+    console.log('❌ firebase.js chưa được tạo');
+    console.log('   Tạo file src/config/firebase.js');
+  }
+  
   console.log('');
 }
 

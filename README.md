@@ -146,7 +146,50 @@ npm run dev
 
 ## Deployment
 
-### Firebase Hosting
+### Vercel (Khuyến nghị)
+
+#### Bước 1: Chuẩn bị GitHub Repository
+```bash
+# Đảm bảo code đã được commit
+git add .
+git commit -m "Ready for deployment"
+
+# Push lên GitHub (nếu chưa có remote)
+git remote add origin https://github.com/your-username/manage-bill.git
+git branch -M main
+git push -u origin main
+```
+
+#### Bước 2: Deploy với Vercel
+1. Truy cập [vercel.com](https://vercel.com) và đăng nhập bằng GitHub
+2. Click **"New Project"**
+3. Import repository `ManageBill` từ GitHub
+4. **Framework Preset**: Vercel sẽ tự động detect Vite
+5. **Root Directory**: `.` (mặc định)
+6. **Build Command**: `npm run build` (mặc định)
+7. **Output Directory**: `dist` (mặc định)
+
+#### Bước 3: Cấu hình Environment Variables
+Trong Vercel dashboard > Project Settings > Environment Variables, thêm:
+
+```bash
+VITE_FIREBASE_API_KEY=your-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+VITE_FIREBASE_APP_ID=your-app-id
+```
+
+#### Bước 4: Cập nhật Firebase Config
+Firebase config sẽ đọc từ environment variables (xem `src/config/firebase.production.js`)
+
+#### Bước 5: Deploy
+- Vercel sẽ tự động deploy khi push code lên GitHub
+- Mỗi commit sẽ tạo preview deployment
+- Branch `main` sẽ auto-deploy lên production
+
+### Firebase Hosting (Alternative)
 1. Cài đặt Firebase CLI:
 ```bash
 npm install -g firebase-tools

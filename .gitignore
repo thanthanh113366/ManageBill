@@ -84,4 +84,8 @@ coverage/
 .vuepress/dist
 
 # Serverless directories
-.serverless 
+.serverless
+
+# Vercel
+.vercel
+.env*.local 

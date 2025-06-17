@@ -12,7 +12,7 @@ const schema = yup.object({
 });
 
 // Mật khẩu mặc định (trong production nên lưu trong Firebase hoặc env)
-const ADMIN_PASSWORD = 'quan-oc-2024';
+const ADMIN_PASSWORD = '050425';
 
 const PasswordGate = () => {
   const [showPassword, setShowPassword] = useState(false);

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { Calendar, FileText, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit } from 'lucide-react';
+import EditBill from '../components/EditBill';
 
 const BillManagement = () => {
   const { menuItems } = useApp();
@@ -11,6 +12,7 @@ const BillManagement = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [expandedBill, setExpandedBill] = useState(null);
   const [billDetails, setBillDetails] = useState({});
+  const [editingBill, setEditingBill] = useState(null);
 
   useEffect(() => {
     const q = query(
@@ -102,6 +104,15 @@ const BillManagement = () => {
 
   const summary = getTotalSummary();
 
+  const handleEditBill = (bill) => {
+    setEditingBill(bill);
+  };
+
+  const handleBillUpdated = () => {
+    // Bills will be automatically updated via the onSnapshot listener
+    // No need to manually refetch data
+  };
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto">
@@ -123,7 +134,7 @@ const BillManagement = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Quản lý đơn hàng</h1>
             <p className="text-gray-600 mt-1">
-              Xem và quản lý các đơn hàng theo ngày
+              Xem, chỉnh sửa và quản lý các đơn hàng theo ngày
             </p>
           </div>
           
@@ -213,11 +224,23 @@ const BillManagement = () => {
                         </div>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          Đơn hàng #{bill.id.slice(-6)}
-                        </p>
+                        <div className="flex items-center space-x-2">
+                          <p className="text-sm font-medium text-gray-900">
+                            Đơn hàng #{bill.id.slice(-6)}
+                          </p>
+                          {bill.updatedAt && (
+                            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                              Đã sửa
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-600">
-                          {formatTime(bill.createdAt)}
+                          Tạo: {formatTime(bill.createdAt)}
+                          {bill.updatedAt && (
+                            <span className="block">
+                              Sửa: {formatTime(bill.updatedAt)}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -236,16 +259,26 @@ const BillManagement = () => {
                         {formatCurrency(bill.totalProfit)}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleViewDetails(bill)}
-                      className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
-                    >
-                      {expandedBill === bill.id ? (
-                        <ChevronUp size={20} />
-                      ) : (
-                        <ChevronDown size={20} />
-                      )}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleEditBill(bill)}
+                        className="p-2 text-blue-600 hover:text-blue-800 rounded-full hover:bg-blue-50"
+                        title="Chỉnh sửa đơn hàng"
+                      >
+                        <Edit size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleViewDetails(bill)}
+                        className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                        title="Xem chi tiết"
+                      >
+                        {expandedBill === bill.id ? (
+                          <ChevronUp size={20} />
+                        ) : (
+                          <ChevronDown size={20} />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -287,6 +320,15 @@ const BillManagement = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Bill Modal */}
+      {editingBill && (
+        <EditBill
+          bill={editingBill}
+          onClose={() => setEditingBill(null)}
+          onUpdated={handleBillUpdated}
+        />
+      )}
     </div>
   );
 };

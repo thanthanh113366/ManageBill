@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Rules cho collection menuItems
+    match /menuItems/{document} {
+      // Cho phép read/write toàn bộ - trong production nên thêm authentication
+      allow read, write: if true;
+      
+      // Production rules (uncomment khi có authentication):
+      // allow read, write: if request.auth != null;
+    }
+    
+    // Rules cho collection bills
+    match /bills/{document} {
+      // Cho phép read/write toàn bộ - trong production nên thêm authentication
+      allow read, write: if true;
+      
+      // Production rules (uncomment khi có authentication):
+      // allow read, write: if request.auth != null;
+      
+      // Validate dữ liệu bill khi tạo mới
+      allow create: if true && 
+        request.resource.data.keys().hasAll(['createdAt', 'date', 'items', 'totalRevenue', 'totalProfit']) &&
+        request.resource.data.items.size() > 0 &&
+        request.resource.data.totalRevenue >= 0 &&
+        request.resource.data.totalProfit >= 0;
+    }
+    
+    // Rules cho collection passwords (nếu lưu password trong Firestore)
+    match /config/{document} {
+      // Chỉ cho phép read - không cho phép write từ client
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+} 

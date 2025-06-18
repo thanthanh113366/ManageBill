@@ -167,15 +167,15 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl my-4 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
               Chỉnh sửa đơn hàng #{bill.id.slice(-6)}
             </h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-xs sm:text-sm text-gray-600">
               Tạo lúc: {formatTime(bill.createdAt)}
             </p>
           </div>
@@ -183,14 +183,15 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
-        <div className="flex h-[calc(90vh-120px)]">
+        {/* Main Content */}
+        <div className="p-4 sm:p-6 max-h-[80vh] overflow-y-auto">
           {/* Menu Section */}
-          <div className="flex-1 p-6 overflow-y-auto border-r">
-            <h3 className="text-lg font-semibold mb-4">Thực đơn</h3>
+          <div className="mb-8">
+            <h3 className="text-base sm:text-lg font-semibold mb-4">Thực đơn</h3>
             
             {/* Category Tabs */}
             <div className="flex overflow-x-auto space-x-2 mb-6 pb-2">
@@ -200,7 +201,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                   <button
                     key={category.id}
                     onClick={() => setSelectedCategory(category.id)}
-                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium relative ${
+                    className={`flex-shrink-0 px-3 py-2 rounded-full text-xs sm:text-sm font-medium relative ${
                       selectedCategory === category.id
                         ? 'bg-indigo-100 text-indigo-700'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -209,7 +210,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                     <span className="mr-1">{category.emoji}</span>
                     {category.name}
                     {itemCount > 0 && (
-                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
                         {itemCount}
                       </span>
                     )}
@@ -219,7 +220,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
             </div>
 
             {/* Menu Items Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {filteredMenuItems.map(item => {
                 const orderItem = orderItems.find(o => o.menuItemId === item.id);
                 const quantity = orderItem ? orderItem.quantity : 0;
@@ -227,19 +228,19 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                 return (
                   <div
                     key={item.id}
-                    className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${
+                    className={`border rounded-lg p-3 hover:shadow-md transition-shadow ${
                       quantity > 0 ? 'ring-2 ring-indigo-200 bg-indigo-50' : 'bg-white'
                     }`}
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{item.name}</h4>
-                        <p className="text-lg font-bold text-indigo-600">
+                        <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
+                        <p className="text-base font-bold text-indigo-600">
                           {formatCurrency(item.price)}
                         </p>
                       </div>
                       {quantity > 0 && (
-                        <span className="bg-indigo-600 text-white text-sm px-2 py-1 rounded-full">
+                        <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded-full">
                           {quantity}
                         </span>
                       )}
@@ -252,22 +253,22 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                             onClick={() => updateQuantity(item.id, quantity - 1)}
                             className="p-1 hover:bg-gray-200 rounded"
                           >
-                            <Minus size={16} />
+                            <Minus size={14} />
                           </button>
                         )}
                         
                         <button
                           onClick={() => addToOrder(item)}
-                          className="bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 text-sm"
+                          className="bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 text-xs"
                         >
-                          <Plus size={16} />
+                          <Plus size={14} />
                         </button>
                       </div>
                       
                       {quantity > 0 && (
                         <button
                           onClick={() => removeFromOrder(item.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
+                          className="text-red-600 hover:text-red-800 text-xs"
                         >
                           Xóa
                         </button>
@@ -282,10 +283,10 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
             {filteredMenuItems.length === 0 && (
               <div className="text-center py-8">
                 <div className="text-gray-400">
-                  <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-10 h-10 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
-                  <p className="text-lg font-medium text-gray-900">Không có món ăn nào</p>
+                  <p className="text-base font-medium text-gray-900">Không có món ăn nào</p>
                   <p className="text-sm text-gray-600">Danh mục này chưa có món ăn nào</p>
                 </div>
               </div>
@@ -293,10 +294,10 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
           </div>
 
           {/* Order Summary */}
-          <div className="w-96 p-6 bg-gray-50 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Đơn hàng</h3>
-              <ShoppingCart size={20} />
+          <div className="border-t pt-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-base sm:text-lg font-semibold">Đơn hàng</h3>
+              <ShoppingCart size={18} />
             </div>
 
             {orderItems.length === 0 ? (
@@ -305,42 +306,42 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                 <p className="text-gray-500">Chưa có món nào</p>
               </div>
             ) : (
-              <div className="space-y-3 mb-6">
+              <div className="space-y-4 mb-6">
                 {orderItems.map(item => (
-                  <div key={item.menuItemId} className="bg-white rounded-lg p-3 shadow-sm">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-medium text-gray-900 flex-1">
+                  <div key={item.menuItemId} className="bg-gray-50 rounded-lg p-5 border">
+                    <div className="flex justify-between items-start mb-4">
+                      <h4 className="font-semibold text-gray-900 text-lg">
                         {item.menuItem.name}
                       </h4>
                       <button
                         onClick={() => removeFromOrder(item.menuItemId)}
-                        className="text-red-600 hover:text-red-800 ml-2"
+                        className="text-red-600 hover:text-red-800 ml-3 p-1 hover:bg-red-50 rounded-full"
                       >
-                        <X size={16} />
+                        <X size={20} />
                       </button>
                     </div>
                     
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-4">
                         <button
                           onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
-                          className="p-1 hover:bg-gray-100 rounded"
+                          className="p-3 hover:bg-gray-200 rounded-full bg-white border"
                         >
-                          <Minus size={16} />
+                          <Minus size={20} />
                         </button>
-                        <span className="w-8 text-center">{item.quantity}</span>
+                        <span className="w-16 text-center text-xl font-bold">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
-                          className="p-1 hover:bg-gray-100 rounded"
+                          className="p-3 hover:bg-gray-200 rounded-full bg-white border"
                         >
-                          <Plus size={16} />
+                          <Plus size={20} />
                         </button>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-600">
+                        <div className="text-base text-gray-600">
                           {formatCurrency(item.menuItem.price)} x {item.quantity}
                         </div>
-                        <div className="font-medium">
+                        <div className="font-bold text-xl text-green-600">
                           {formatCurrency(item.menuItem.price * item.quantity)}
                         </div>
                       </div>
@@ -350,58 +351,36 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
               </div>
             )}
 
-            {/* Totals */}
-            {orderItems.length > 0 && (
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex items-center">
-                  <Calculator className="w-5 h-5 text-gray-500 mr-2" />
-                  <span className="font-medium">Tổng kết</span>
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Vốn:</span>
-                    <span>{formatCurrency(totalCost)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Chi phí cố định:</span>
-                    <span>{formatCurrency(totalFixedCost)}</span>
-                  </div>
-                  <div className="flex justify-between font-medium">
-                    <span>Doanh thu:</span>
-                    <span className="text-green-600">{formatCurrency(totalRevenue)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Lợi nhuận:</span>
-                    <span className={totalProfit >= 0 ? 'text-indigo-600' : 'text-red-600'}>
-                      {formatCurrency(totalProfit)}
-                    </span>
-                  </div>
-                </div>
+            {/* Summary */}
+            <div className="border-t pt-6 space-y-4 mb-8 bg-white rounded-lg p-6 border">
+              <div className="flex justify-between items-center">
+                <span className="text-2xl font-semibold text-gray-900">Tổng cộng:</span>
+                <span className="text-3xl font-bold text-green-600">
+                  {formatCurrency(totalRevenue)}
+                </span>
               </div>
-            )}
+            </div>
 
             {/* Action Buttons */}
-            <div className="mt-6 space-y-3">
+            <div className="space-y-4">
               <button
                 onClick={handleUpdateBill}
                 disabled={isSubmitting || orderItems.length === 0}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+                className="w-full bg-indigo-600 text-white py-5 px-6 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-xl"
               >
                 {isSubmitting ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
                 ) : (
-                  <Save size={20} className="mr-2" />
+                  <Save size={24} />
                 )}
                 {isSubmitting ? 'Đang cập nhật...' : 'Cập nhật đơn hàng'}
               </button>
 
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                disabled={isSubmitting}
-                className="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+                className="w-full bg-red-600 text-white py-4 px-6 rounded-lg hover:bg-red-700 flex items-center justify-center gap-3 font-semibold text-lg"
               >
-                <Trash2 size={20} className="mr-2" />
+                <Trash2 size={20} />
                 Xóa đơn hàng
               </button>
             </div>

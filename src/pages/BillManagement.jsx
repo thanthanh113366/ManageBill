@@ -168,12 +168,11 @@ const BillManagement = () => {
 
   const getTotalSummary = () => {
     const totalRevenue = bills.reduce((sum, bill) => sum + bill.totalRevenue, 0);
-    const totalProfit = bills.reduce((sum, bill) => sum + bill.totalProfit, 0);
     const totalBills = bills.length;
     const paidBills = bills.filter(bill => bill.status === 'paid').length;
     const pendingBills = bills.filter(bill => bill.status === 'pending').length;
     
-    return { totalRevenue, totalProfit, totalBills, paidBills, pendingBills };
+    return { totalRevenue, totalBills, paidBills, pendingBills };
   };
 
   const handleEditBill = (bill) => {
@@ -224,8 +223,165 @@ const BillManagement = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      {/* Bills List */}
+      <div className="bg-white rounded-lg shadow-sm border">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Đơn hàng ngày {formatDate(selectedDate)}
+          </h2>
+        </div>
+
+        {bills.length === 0 ? (
+          <div className="p-8 text-center">
+            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Không có đơn hàng nào
+            </h3>
+            <p className="text-gray-600">
+              Chưa có đơn hàng nào được tạo trong ngày này
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {bills.map((bill) => (
+              <div key={bill.id} className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-indigo-600" />
+                        </div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            Đơn hàng #{bill.id.slice(-6)}
+                          </p>
+                          {bill.tableNumber && (
+                            <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">
+                              Bàn {bill.tableNumber}
+                            </span>
+                          )}
+                          {bill.status === 'paid' ? (
+                            <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
+                              ✓ Đã thanh toán
+                            </span>
+                          ) : (
+                            <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full">
+                              ⏱ Chờ thanh toán
+                            </span>
+                          )}
+                          {bill.updatedAt && (
+                            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                              Đã sửa
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <div>Tạo: {formatTime(bill.createdAt)}</div>
+                          {bill.updatedAt && (
+                            <div>Sửa: {formatTime(bill.updatedAt)}</div>
+                          )}
+                          {bill.paidAt && (
+                            <div className="text-green-600">
+                              Thanh toán: {formatTime(bill.paidAt)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="text-left sm:text-right">
+                      <p className="text-sm text-gray-600">Doanh thu</p>
+                      <p className="text-lg font-semibold text-green-600">
+                        {formatCurrency(bill.totalRevenue)}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {bill.status === 'pending' && (
+                        <button
+                          onClick={() => handleMarkAsPaid(bill)}
+                          disabled={processingPayment === bill.id}
+                          className="flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:text-green-800 hover:bg-green-50 rounded-md border border-green-200 disabled:opacity-50 transition-colors"
+                          title="Đánh dấu đã thanh toán"
+                        >
+                          {processingPayment === bill.id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                          ) : (
+                            <CheckCircle size={16} />
+                          )}
+                          <span className="hidden sm:inline">Thanh toán</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEditBill(bill)}
+                        className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md border border-blue-200 transition-colors"
+                        title="Chỉnh sửa đơn hàng"
+                      >
+                        <Edit size={16} />
+                        <span className="hidden sm:inline">Sửa</span>
+                      </button>
+                      <button
+                        onClick={() => handleViewDetails(bill)}
+                        className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-md border border-gray-200 transition-colors"
+                        title="Xem chi tiết"
+                      >
+                        {expandedBill === bill.id ? (
+                          <>
+                            <ChevronUp size={16} />
+                            <span className="hidden sm:inline">Ẩn</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown size={16} />
+                            <span className="hidden sm:inline">Chi tiết</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded Details */}
+                {expandedBill === bill.id && billDetails[bill.id] && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">
+                      Chi tiết đơn hàng
+                    </h4>
+                    <div className="space-y-2">
+                      {billDetails[bill.id].map((item, index) => (
+                        <div key={index} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-md">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-900">
+                                {item.menuItem.name}
+                              </span>
+                              <span className="text-sm text-gray-600">
+                                x {item.quantity}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
+                              <span>{formatCurrency(item.menuItem.price)}/món</span>
+                              <span>Doanh thu: {formatCurrency(item.itemRevenue)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Summary Cards - Moved to bottom */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -275,181 +431,6 @@ const BillManagement = () => {
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <div className="w-6 h-6 text-indigo-600 font-bold">₫</div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-600">Lợi nhuận</p>
-              <p className="text-xl font-bold text-indigo-600">
-                {formatCurrency(summary.totalProfit)}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bills List */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Đơn hàng ngày {formatDate(selectedDate)}
-          </h2>
-        </div>
-
-        {bills.length === 0 ? (
-          <div className="p-8 text-center">
-            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Không có đơn hàng nào
-            </h3>
-            <p className="text-gray-600">
-              Chưa có đơn hàng nào được tạo trong ngày này
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {bills.map((bill) => (
-              <div key={bill.id} className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-shrink-0">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-indigo-600" />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <p className="text-sm font-medium text-gray-900">
-                            Đơn hàng #{bill.id.slice(-6)}
-                          </p>
-                          {bill.tableNumber && (
-                            <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">
-                              Bàn {bill.tableNumber}
-                            </span>
-                          )}
-                          {bill.status === 'paid' ? (
-                            <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
-                              ✓ Đã thanh toán
-                            </span>
-                          ) : (
-                            <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full">
-                              ⏱ Chờ thanh toán
-                            </span>
-                          )}
-                          {bill.updatedAt && (
-                            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
-                              Đã sửa
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          Tạo: {formatTime(bill.createdAt)}
-                          {bill.updatedAt && (
-                            <span className="block">
-                              Sửa: {formatTime(bill.updatedAt)}
-                            </span>
-                          )}
-                          {bill.paidAt && (
-                            <span className="block text-green-600">
-                              Thanh toán: {formatTime(bill.paidAt)}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4">
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Doanh thu</p>
-                      <p className="text-lg font-semibold text-green-600">
-                        {formatCurrency(bill.totalRevenue)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Lợi nhuận</p>
-                      <p className="text-lg font-semibold text-indigo-600">
-                        {formatCurrency(bill.totalProfit)}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {bill.status === 'pending' && (
-                        <button
-                          onClick={() => handleMarkAsPaid(bill)}
-                          disabled={processingPayment === bill.id}
-                          className="p-2 text-green-600 hover:text-green-800 rounded-full hover:bg-green-50 disabled:opacity-50"
-                          title="Đánh dấu đã thanh toán"
-                        >
-                          {processingPayment === bill.id ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
-                          ) : (
-                            <CheckCircle size={20} />
-                          )}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleEditBill(bill)}
-                        className="p-2 text-blue-600 hover:text-blue-800 rounded-full hover:bg-blue-50"
-                        title="Chỉnh sửa đơn hàng"
-                      >
-                        <Edit size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleViewDetails(bill)}
-                        className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
-                        title="Xem chi tiết"
-                      >
-                        {expandedBill === bill.id ? (
-                          <ChevronUp size={20} />
-                        ) : (
-                          <ChevronDown size={20} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expanded Details */}
-                {expandedBill === bill.id && billDetails[bill.id] && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">
-                      Chi tiết đơn hàng
-                    </h4>
-                    <div className="space-y-2">
-                      {billDetails[bill.id].map((item, index) => (
-                        <div key={index} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-md">
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-900">
-                                {item.menuItem.name}
-                              </span>
-                              <span className="text-sm text-gray-600">
-                                x {item.quantity}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                              <span>{formatCurrency(item.menuItem.price)}/món</span>
-                              <div className="flex space-x-4">
-                                <span>Doanh thu: {formatCurrency(item.itemRevenue)}</span>
-                                <span className={`${item.itemProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  Lợi nhuận: {formatCurrency(item.itemProfit)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Edit Bill Modal */}

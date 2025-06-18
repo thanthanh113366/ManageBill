@@ -11,8 +11,8 @@ const schema = yup.object({
   password: yup.string().required('Vui lòng nhập mật khẩu')
 });
 
-// Mật khẩu mặc định (trong production nên lưu trong Firebase hoặc env)
-const ADMIN_PASSWORD = '050425';
+// Lấy mật khẩu từ environment variable
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'quan-oc-2024';
 
 const PasswordGate = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -104,9 +104,6 @@ const PasswordGate = () => {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Demo password: quan-oc-2024</p>
-        </div>
       </div>
     </div>
   );

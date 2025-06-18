@@ -228,6 +228,11 @@ const BillManagement = () => {
                           <p className="text-sm font-medium text-gray-900">
                             Đơn hàng #{bill.id.slice(-6)}
                           </p>
+                          {bill.tableNumber && (
+                            <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">
+                              Bàn {bill.tableNumber}
+                            </span>
+                          )}
                           {bill.updatedAt && (
                             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
                               Đã sửa

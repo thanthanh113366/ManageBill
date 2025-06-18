@@ -56,25 +56,41 @@ cd ManageBill
 npm install
 ```
 
-### 3. Cấu hình Firebase
+### 3. Cấu hình Environment Variables
 
-#### Bước 3.1: Tạo Firebase Project
+#### Bước 3.1: Tạo file `.env`
+```bash
+# Tạo file .env trong thư mục gốc
+touch .env
+```
+
+Thêm nội dung sau vào file `.env`:
+```env
+# Admin password for authentication
+VITE_ADMIN_PASSWORD=quan-oc-2024
+```
+
+⚠️ **Bảo mật**: 
+- File `.env` đã được thêm vào `.gitignore`
+- Không commit password lên Git
+- Thay đổi password mặc định trong production
+
+### 4. Cấu hình Firebase
+
+#### Bước 4.1: Tạo Firebase Project
 1. Tạo project mới trên [Firebase Console](https://console.firebase.google.com/)
 2. Tạo Firestore Database với chế độ "Start in test mode"
 
-#### Bước 3.2: Setup Environment Variables
-1. **Tạo file `.env.local`:**
-   ```bash
-   # Tạo file environment variables cho development
-   touch .env.local
-   ```
-
-2. **Lấy Firebase Config từ Console:**
+#### Bước 4.2: Setup Firebase Environment Variables
+1. **Lấy Firebase Config từ Console:**
    - Vào Firebase Console > Project Settings > General > Your apps
    - Chọn web app và copy Firebase configuration
-   - Điền vào file `.env.local`:
+   - Thêm vào file `.env`:
 
    ```env
+   # Admin password
+   VITE_ADMIN_PASSWORD=quan-oc-2024
+
    # Firebase Configuration
    VITE_FIREBASE_API_KEY=your-actual-api-key
    VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
@@ -86,12 +102,7 @@ npm install
 
 ✅ **Tự động**: File `firebase.js` sẽ tự động đọc từ environment variables.
 
-⚠️ **Bảo mật**: 
-- File `.env.local` và `firebase.js` đã được thêm vào `.gitignore`
-- Không commit API keys lên Git
-- Dùng environment variables cho production
-
-### 4. Cấu hình Firestore Security Rules
+### 5. Cấu hình Firestore Security Rules
 Áp dụng rules sau trong Firebase Console > Firestore Database > Rules:
 
 ```javascript
@@ -107,7 +118,7 @@ service cloud.firestore {
 }
 ```
 
-### 5. Chạy ứng dụng
+### 6. Chạy ứng dụng
 ```bash
 npm run dev
 ```
@@ -117,13 +128,18 @@ npm run dev
 ## Sử dụng
 
 ### Đăng nhập
-- Mật khẩu mặc định: `quan-oc-2024`
-- Có thể thay đổi trong `src/components/PasswordGate.jsx`
+- Mật khẩu mặc định: `quan-oc-2024` (có thể thay đổi trong file `.env`)
+- Password được đọc từ environment variable `VITE_ADMIN_PASSWORD`
 
 ### Quy trình làm việc
-1. **Thiết lập menu**: Thêm các món ăn vào menu với đầy đủ thông tin giá cả
-2. **Tạo đơn hàng**: Chọn món và số lượng, hệ thống tự động tính toán
-3. **Quản lý đơn hàng**: Xem và theo dõi các đơn hàng theo ngày
+1. **Thiết lập nhà hàng**: 
+   - Thêm các bàn ăn với số ghế trong tab "Bàn" của phần quản lý
+   - Thêm các món ăn vào menu với đầy đủ thông tin giá cả trong tab "Menu"
+2. **Tạo đơn hàng**: 
+   - Chọn số bàn (bắt buộc)
+   - Chọn món và số lượng theo danh mục (Ốc, Ăn no, Ăn chơi, Lai rai, Giải khát, Tất cả)
+   - Hệ thống tự động tính toán doanh thu và lợi nhuận
+3. **Quản lý đơn hàng**: Xem và theo dõi các đơn hàng theo ngày, bao gồm thông tin số bàn
 4. **Phân tích báo cáo**: Theo dõi xu hướng kinh doanh qua biểu đồ
 
 ## Cấu trúc dữ liệu
@@ -132,10 +148,20 @@ npm run dev
 ```javascript
 {
   name: "Tên món ăn",
-  price: 50000,        // Giá bán (VND)
-  tax: 8,              // Thuế (%)
-  costPrice: 30000,    // Giá vốn (VND)
-  fixedCost: 5000      // Chi phí cố định (VND)
+  category: "oc",       // Danh mục: oc, an_no, an_choi, lai_rai, giai_khat
+  price: 50000,         // Giá bán (VND)
+  tax: 8,               // Thuế (%)
+  costPrice: 30000,     // Giá vốn (VND)
+  fixedCost: 5000       // Chi phí cố định (VND)
+}
+```
+
+### Collection `tables`
+```javascript
+{
+  number: 1,            // Số bàn (unique)
+  seats: 4,             // Số chỗ ngồi
+  description: "Gần cửa sổ"  // Mô tả (optional)
 }
 ```
 
@@ -144,6 +170,7 @@ npm run dev
 {
   createdAt: timestamp,
   date: "2024-01-15",           // YYYY-MM-DD
+  tableNumber: 1,               // Số bàn
   items: [
     {
       menuItemId: "doc-id",

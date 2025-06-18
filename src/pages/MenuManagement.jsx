@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
-import { Plus, Edit, Trash2, X, Save } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Save, UtensilsCrossed, Table2 } from 'lucide-react';
 
 // Categories for menu items
 const CATEGORIES = [
@@ -17,8 +17,8 @@ const CATEGORIES = [
   { value: 'giai_khat', label: 'Giải khát' }
 ];
 
-// Validation schema
-const schema = yup.object({
+// Validation schema for menu items
+const menuSchema = yup.object({
   name: yup.string().required('Tên món là bắt buộc'),
   category: yup.string().required('Danh mục là bắt buộc'),
   price: yup.number()
@@ -36,56 +36,82 @@ const schema = yup.object({
     .min(0, 'Chi phí cố định phải lớn hơn hoặc bằng 0')
 });
 
+// Validation schema for tables
+const tableSchema = yup.object({
+  number: yup.number()
+    .required('Số bàn là bắt buộc')
+    .min(1, 'Số bàn phải lớn hơn 0'),
+  seats: yup.number()
+    .required('Số ghế là bắt buộc')
+    .min(1, 'Số ghế phải lớn hơn 0')
+    .max(20, 'Số ghế không được vượt quá 20'),
+  description: yup.string()
+});
+
+const TABS = [
+  { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+  { id: 'tables', label: 'Bàn', icon: Table2 }
+];
+
 const MenuManagement = () => {
-  const { menuItems } = useApp();
+  const { menuItems, tables } = useApp();
+  const [activeTab, setActiveTab] = useState('menu');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    setValue
-  } = useForm({
-    resolver: yupResolver(schema)
+  // Menu form
+  const menuForm = useForm({
+    resolver: yupResolver(menuSchema)
   });
 
-  const openModal = (item = null) => {
-    setEditingItem(item);
+  // Table form
+  const tableForm = useForm({
+    resolver: yupResolver(tableSchema)
+  });
+
+  const openModal = (item = null, type = 'menu') => {
+    setEditingItem({ ...item, type });
     setIsModalOpen(true);
     
     if (item) {
-      // Pre-fill form for editing
-      setValue('name', item.name);
-      setValue('category', item.category || 'oc');
-      setValue('price', item.price);
-      setValue('tax', item.tax);
-      setValue('costPrice', item.costPrice);
-      setValue('fixedCost', item.fixedCost);
+      if (type === 'menu') {
+        menuForm.setValue('name', item.name);
+        menuForm.setValue('category', item.category || 'oc');
+        menuForm.setValue('price', item.price);
+        menuForm.setValue('tax', item.tax);
+        menuForm.setValue('costPrice', item.costPrice);
+        menuForm.setValue('fixedCost', item.fixedCost);
+      } else {
+        tableForm.setValue('number', item.number);
+        tableForm.setValue('seats', item.seats);
+        tableForm.setValue('description', item.description || '');
+      }
     } else {
-      reset();
+      if (type === 'menu') {
+        menuForm.reset();
+      } else {
+        tableForm.reset();
+      }
     }
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingItem(null);
-    setIsSubmitting(false); // Reset loading state
-    reset();
+    setIsSubmitting(false);
+    menuForm.reset();
+    tableForm.reset();
   };
 
-  const onSubmit = async (data) => {
+  const onSubmitMenu = async (data) => {
     setIsSubmitting(true);
 
     try {
-      if (editingItem) {
-        // Update existing item
+      if (editingItem && editingItem.id) {
         await updateDoc(doc(db, 'menuItems', editingItem.id), data);
         toast.success('Cập nhật món thành công!');
       } else {
-        // Add new item
         await addDoc(collection(db, 'menuItems'), data);
         toast.success('Thêm món thành công!');
       }
@@ -99,14 +125,50 @@ const MenuManagement = () => {
     }
   };
 
-  const handleDelete = async (item) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa món "${item.name}"?`)) {
+  const onSubmitTable = async (data) => {
+    setIsSubmitting(true);
+
+    try {
+      // Check if table number already exists (for new tables or when editing number)
+      const existingTable = tables?.find(table => 
+        table.number === data.number && 
+        (!editingItem?.id || table.id !== editingItem.id)
+      );
+
+      if (existingTable) {
+        toast.error(`Bàn số ${data.number} đã tồn tại`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (editingItem && editingItem.id) {
+        await updateDoc(doc(db, 'tables', editingItem.id), data);
+        toast.success('Cập nhật bàn thành công!');
+      } else {
+        await addDoc(collection(db, 'tables'), data);
+        toast.success('Thêm bàn thành công!');
+      }
+      
+      closeModal();
+    } catch (error) {
+      console.error('Error saving table:', error);
+      toast.error('Có lỗi xảy ra khi lưu bàn');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (item, type) => {
+    const itemName = type === 'menu' ? item.name : `Bàn ${item.number}`;
+    
+    if (window.confirm(`Bạn có chắc chắn muốn xóa ${itemName}?`)) {
       try {
-        await deleteDoc(doc(db, 'menuItems', item.id));
-        toast.success('Xóa món thành công!');
+        const collection_name = type === 'menu' ? 'menuItems' : 'tables';
+        await deleteDoc(doc(db, collection_name, item.id));
+        toast.success(`Xóa ${type === 'menu' ? 'món' : 'bàn'} thành công!`);
       } catch (error) {
-        console.error('Error deleting menu item:', error);
-        toast.error('Có lỗi xảy ra khi xóa món');
+        console.error(`Error deleting ${type}:`, error);
+        toast.error(`Có lỗi xảy ra khi xóa ${type === 'menu' ? 'món' : 'bàn'}`);
       }
     }
   };
@@ -127,130 +189,226 @@ const MenuManagement = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Quản lý menu</h1>
-          <button
-            onClick={() => openModal()}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Plus size={20} className="mr-2" />
-            Thêm món
-          </button>
+      <div className="bg-white rounded-lg shadow-sm border">
+        {/* Header with tabs */}
+        <div className="border-b border-gray-200">
+          <div className="px-6 py-4">
+            <h1 className="text-2xl font-bold text-gray-900">Quản lý nhà hàng</h1>
+          </div>
+          <nav className="flex space-x-8 px-6">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                    isActive
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon size={20} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        {menuItems.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <Plus size={48} className="mx-auto" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Chưa có món nào
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Thêm món đầu tiên vào menu của bạn
-            </p>
+        {/* Content */}
+        <div className="p-6">
+          {/* Add button */}
+          <div className="flex justify-end mb-6">
             <button
-              onClick={() => openModal()}
+              onClick={() => openModal(null, activeTab)}
               className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               <Plus size={20} className="mr-2" />
-              Thêm món
+              {activeTab === 'menu' ? 'Thêm món' : 'Thêm bàn'}
             </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tên món
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Danh mục
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Giá bán
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Thuế (%)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Giá vốn
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Chi phí cố định
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Lợi nhuận/món
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Thao tác
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {menuItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {item.name}
+
+          {/* Menu Tab Content */}
+          {activeTab === 'menu' && (
+            <>
+              {menuItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-4">
+                    <UtensilsCrossed size={48} className="mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Chưa có món nào
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Thêm món đầu tiên vào menu của bạn
+                  </p>
+                  <button
+                    onClick={() => openModal(null, 'menu')}
+                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <Plus size={20} className="mr-2" />
+                    Thêm món
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tên món
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Danh mục
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Giá bán
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Thuế (%)
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Giá vốn
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Chi phí cố định
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Lợi nhuận/món
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Thao tác
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {menuItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {item.name}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                              {getCategoryLabel(item.category || 'oc')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {formatCurrency(item.price)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {item.tax}%
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {formatCurrency(item.costPrice)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {formatCurrency(item.fixedCost)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className={`text-sm font-medium ${
+                              calculateProfit(item) >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {formatCurrency(calculateProfit(item))}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end space-x-2">
+                              <button
+                                onClick={() => openModal(item, 'menu')}
+                                className="text-indigo-600 hover:text-indigo-900 p-1"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(item, 'menu')}
+                                className="text-red-600 hover:text-red-900 p-1"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Tables Tab Content */}
+          {activeTab === 'tables' && (
+            <>
+              {(!tables || tables.length === 0) ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-4">
+                    <Table2 size={48} className="mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Chưa có bàn nào
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Thêm bàn đầu tiên cho nhà hàng của bạn
+                  </p>
+                  <button
+                    onClick={() => openModal(null, 'tables')}
+                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <Plus size={20} className="mr-2" />
+                    Thêm bàn
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {tables.map((table) => (
+                    <div key={table.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Bàn {table.number}
+                        </h3>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => openModal(table, 'tables')}
+                            className="text-indigo-600 hover:text-indigo-900 p-1"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(table, 'tables')}
+                            className="text-red-600 hover:text-red-900 p-1"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                        {getCategoryLabel(item.category || 'oc')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatCurrency(item.price)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {item.tax}%
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatCurrency(item.costPrice)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatCurrency(item.fixedCost)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${
-                        calculateProfit(item) >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {formatCurrency(calculateProfit(item))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => openModal(item)}
-                          className="text-indigo-600 hover:text-indigo-900 p-1"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      <p className="text-sm text-gray-600 mb-2">
+                        {table.seats} chỗ ngồi
+                      </p>
+                      {table.description && (
+                        <p className="text-sm text-gray-500">
+                          {table.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
@@ -260,7 +418,10 @@ const MenuManagement = () => {
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-900">
-                  {editingItem ? 'Chỉnh sửa món' : 'Thêm món mới'}
+                  {editingItem?.id 
+                    ? (editingItem?.type === 'menu' ? 'Chỉnh sửa món' : 'Chỉnh sửa bàn')
+                    : (activeTab === 'menu' ? 'Thêm món mới' : 'Thêm bàn mới')
+                  }
                 </h2>
                 <button
                   onClick={closeModal}
@@ -270,132 +431,207 @@ const MenuManagement = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên món *
-                  </label>
-                  <input
-                    type="text"
-                    {...register('name')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Nhập tên món"
-                  />
-                  {errors.name && (
-                    <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Danh mục *
-                  </label>
-                  <select
-                    {...register('category')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    {CATEGORIES.map((category) => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.category && (
-                    <p className="text-red-500 text-sm mt-1">{errors.category.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Giá bán (VND) *
-                  </label>
-                  <input
-                    type="number"
-                    {...register('price')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="0"
-                    min="0"
-                    step="1000"
-                  />
-                  {errors.price && (
-                    <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Thuế (%) *
-                  </label>
-                  <input
-                    type="number"
-                    {...register('tax')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="0"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                  />
-                  {errors.tax && (
-                    <p className="text-red-500 text-sm mt-1">{errors.tax.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Giá vốn (VND) *
-                  </label>
-                  <input
-                    type="number"
-                    {...register('costPrice')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="0"
-                    min="0"
-                    step="1000"
-                  />
-                  {errors.costPrice && (
-                    <p className="text-red-500 text-sm mt-1">{errors.costPrice.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Chi phí cố định (VND) *
-                  </label>
-                  <input
-                    type="number"
-                    {...register('fixedCost')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="0"
-                    min="0"
-                    step="1000"
-                  />
-                  {errors.fixedCost && (
-                    <p className="text-red-500 text-sm mt-1">{errors.fixedCost.message}</p>
-                  )}
-                </div>
-
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-400 transition-colors flex items-center justify-center"
-                  >
-                    {isSubmitting ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    ) : (
-                      <Save size={16} className="mr-2" />
+              {/* Menu Form */}
+              {(activeTab === 'menu' || editingItem?.type === 'menu') && (
+                <form onSubmit={menuForm.handleSubmit(onSubmitMenu)} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tên món *
+                    </label>
+                    <input
+                      type="text"
+                      {...menuForm.register('name')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Nhập tên món"
+                    />
+                    {menuForm.formState.errors.name && (
+                      <p className="text-red-500 text-sm mt-1">{menuForm.formState.errors.name.message}</p>
                     )}
-                    {editingItem ? 'Cập nhật' : 'Thêm món'}
-                  </button>
-                </div>
-              </form>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Danh mục *
+                    </label>
+                    <select
+                      {...menuForm.register('category')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {CATEGORIES.map((category) => (
+                        <option key={category.value} value={category.value}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                    {menuForm.formState.errors.category && (
+                      <p className="text-red-500 text-sm mt-1">{menuForm.formState.errors.category.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Giá bán (VND) *
+                    </label>
+                    <input
+                      type="number"
+                      {...menuForm.register('price')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="0"
+                      min="0"
+                      step="1000"
+                    />
+                    {menuForm.formState.errors.price && (
+                      <p className="text-red-500 text-sm mt-1">{menuForm.formState.errors.price.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Thuế (%) *
+                    </label>
+                    <input
+                      type="number"
+                      {...menuForm.register('tax')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="0"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                    />
+                    {menuForm.formState.errors.tax && (
+                      <p className="text-red-500 text-sm mt-1">{menuForm.formState.errors.tax.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Giá vốn (VND) *
+                    </label>
+                    <input
+                      type="number"
+                      {...menuForm.register('costPrice')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="0"
+                      min="0"
+                      step="1000"
+                    />
+                    {menuForm.formState.errors.costPrice && (
+                      <p className="text-red-500 text-sm mt-1">{menuForm.formState.errors.costPrice.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Chi phí cố định (VND) *
+                    </label>
+                    <input
+                      type="number"
+                      {...menuForm.register('fixedCost')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="0"
+                      min="0"
+                      step="1000"
+                    />
+                    {menuForm.formState.errors.fixedCost && (
+                      <p className="text-red-500 text-sm mt-1">{menuForm.formState.errors.fixedCost.message}</p>
+                    )}
+                  </div>
+
+                  <div className="flex space-x-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-400 transition-colors flex items-center justify-center"
+                    >
+                      {isSubmitting ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      ) : (
+                        <Save size={16} className="mr-2" />
+                      )}
+                      {editingItem?.id ? 'Cập nhật' : 'Thêm món'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Table Form */}
+              {(activeTab === 'tables' || editingItem?.type === 'tables') && (
+                <form onSubmit={tableForm.handleSubmit(onSubmitTable)} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Số bàn *
+                    </label>
+                    <input
+                      type="number"
+                      {...tableForm.register('number')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="1"
+                      min="1"
+                    />
+                    {tableForm.formState.errors.number && (
+                      <p className="text-red-500 text-sm mt-1">{tableForm.formState.errors.number.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Số chỗ ngồi *
+                    </label>
+                    <input
+                      type="number"
+                      {...tableForm.register('seats')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="4"
+                      min="1"
+                      max="20"
+                    />
+                    {tableForm.formState.errors.seats && (
+                      <p className="text-red-500 text-sm mt-1">{tableForm.formState.errors.seats.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Mô tả (tùy chọn)
+                    </label>
+                    <textarea
+                      {...tableForm.register('description')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Ví dụ: Gần cửa sổ, có view đẹp..."
+                      rows="3"
+                    />
+                  </div>
+
+                  <div className="flex space-x-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-400 transition-colors flex items-center justify-center"
+                    >
+                      {isSubmitting ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      ) : (
+                        <Save size={16} className="mr-2" />
+                      )}
+                      {editingItem?.id ? 'Cập nhật' : 'Thêm bàn'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>

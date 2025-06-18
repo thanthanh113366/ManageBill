@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit } from 'lucide-react';
+import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock } from 'lucide-react';
+import { toast } from 'react-toastify';
 import EditBill from '../components/EditBill';
 
 const BillManagement = () => {
@@ -13,6 +14,7 @@ const BillManagement = () => {
   const [expandedBill, setExpandedBill] = useState(null);
   const [billDetails, setBillDetails] = useState({});
   const [editingBill, setEditingBill] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(null);
 
   useEffect(() => {
     const q = query(
@@ -26,6 +28,7 @@ const BillManagement = () => {
         id: doc.id,
         ...doc.data()
       }));
+      
       setBills(billsData);
       setLoading(false);
     });
@@ -54,6 +57,75 @@ const BillManagement = () => {
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const handleMarkAsPaid = async (bill) => {
+    if (processingPayment === bill.id) return;
+    
+    // Sử dụng toast để hiển thị confirmation
+    const confirmPayment = () => {
+      toast.dismiss(); // Đóng toast confirmation
+      setProcessingPayment(bill.id);
+      
+      const processPayment = async () => {
+        try {
+          await updateDoc(doc(db, 'bills', bill.id), {
+            status: 'paid',
+            paidAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+
+          toast.success(`Đã thanh toán`, {
+            position: "top-right",
+            autoClose: 2000,
+          });
+        } catch (error) {
+          console.error('Error marking bill as paid:', error);
+          toast.error('Có lỗi xảy ra khi cập nhật trạng thái thanh toán', {
+            position: "top-right",
+            autoClose: 3000,
+          });
+        } finally {
+          setProcessingPayment(null);
+        }
+      };
+
+      processPayment();
+    };
+
+    // Show confirmation toast
+    toast.warn(
+      <div>
+        <p className="font-medium mb-2">
+          Xác nhận thanh toán đơn hàng #{bill.id.slice(-6)}?
+        </p>
+        <p className="text-sm text-gray-600 mb-3">
+          Bàn {bill.tableNumber} - {formatCurrency(bill.totalRevenue)}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={confirmPayment}
+            className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+          >
+            Xác nhận
+          </button>
+          <button
+            onClick={() => toast.dismiss()}
+            className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition-colors"
+          >
+            Hủy
+          </button>
+        </div>
+      </div>,
+      {
+        position: "top-center",
+        autoClose: false,
+        hideProgressBar: true,
+        closeOnClick: false,
+        pauseOnHover: true,
+        draggable: false,
+      }
+    );
   };
 
   const handleViewDetails = async (bill) => {
@@ -98,11 +170,11 @@ const BillManagement = () => {
     const totalRevenue = bills.reduce((sum, bill) => sum + bill.totalRevenue, 0);
     const totalProfit = bills.reduce((sum, bill) => sum + bill.totalProfit, 0);
     const totalBills = bills.length;
+    const paidBills = bills.filter(bill => bill.status === 'paid').length;
+    const pendingBills = bills.filter(bill => bill.status === 'pending').length;
     
-    return { totalRevenue, totalProfit, totalBills };
+    return { totalRevenue, totalProfit, totalBills, paidBills, pendingBills };
   };
-
-  const summary = getTotalSummary();
 
   const handleEditBill = (bill) => {
     setEditingBill(bill);
@@ -125,6 +197,8 @@ const BillManagement = () => {
       </div>
     );
   }
+
+  const summary = getTotalSummary();
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -151,15 +225,39 @@ const BillManagement = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-lg">
               <FileText className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm text-gray-600">Tổng đơn hàng</p>
+              <p className="text-sm text-gray-600">Tổng đơn</p>
               <p className="text-2xl font-bold text-gray-900">{summary.totalBills}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="flex items-center">
+            <div className="p-2 bg-yellow-100 rounded-lg">
+              <Clock className="w-6 h-6 text-yellow-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm text-gray-600">Chờ thanh toán</p>
+              <p className="text-2xl font-bold text-yellow-600">{summary.pendingBills}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="flex items-center">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm text-gray-600">Đã thanh toán</p>
+              <p className="text-2xl font-bold text-green-600">{summary.paidBills}</p>
             </div>
           </div>
         </div>
@@ -170,8 +268,8 @@ const BillManagement = () => {
               <div className="w-6 h-6 text-green-600 font-bold">₫</div>
             </div>
             <div className="ml-4">
-              <p className="text-sm text-gray-600">Tổng doanh thu</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-sm text-gray-600">Doanh thu</p>
+              <p className="text-xl font-bold text-green-600">
                 {formatCurrency(summary.totalRevenue)}
               </p>
             </div>
@@ -184,8 +282,8 @@ const BillManagement = () => {
               <div className="w-6 h-6 text-indigo-600 font-bold">₫</div>
             </div>
             <div className="ml-4">
-              <p className="text-sm text-gray-600">Tổng lợi nhuận</p>
-              <p className="text-2xl font-bold text-indigo-600">
+              <p className="text-sm text-gray-600">Lợi nhuận</p>
+              <p className="text-xl font-bold text-indigo-600">
                 {formatCurrency(summary.totalProfit)}
               </p>
             </div>
@@ -233,6 +331,15 @@ const BillManagement = () => {
                               Bàn {bill.tableNumber}
                             </span>
                           )}
+                          {bill.status === 'paid' ? (
+                            <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
+                              ✓ Đã thanh toán
+                            </span>
+                          ) : (
+                            <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full">
+                              ⏱ Chờ thanh toán
+                            </span>
+                          )}
                           {bill.updatedAt && (
                             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
                               Đã sửa
@@ -244,6 +351,11 @@ const BillManagement = () => {
                           {bill.updatedAt && (
                             <span className="block">
                               Sửa: {formatTime(bill.updatedAt)}
+                            </span>
+                          )}
+                          {bill.paidAt && (
+                            <span className="block text-green-600">
+                              Thanh toán: {formatTime(bill.paidAt)}
                             </span>
                           )}
                         </p>
@@ -265,6 +377,20 @@ const BillManagement = () => {
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
+                      {bill.status === 'pending' && (
+                        <button
+                          onClick={() => handleMarkAsPaid(bill)}
+                          disabled={processingPayment === bill.id}
+                          className="p-2 text-green-600 hover:text-green-800 rounded-full hover:bg-green-50 disabled:opacity-50"
+                          title="Đánh dấu đã thanh toán"
+                        >
+                          {processingPayment === bill.id ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
+                          ) : (
+                            <CheckCircle size={20} />
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEditBill(bill)}
                         className="p-2 text-blue-600 hover:text-blue-800 rounded-full hover:bg-blue-50"

@@ -117,6 +117,7 @@ const CreateBill = () => {
         createdAt: serverTimestamp(),
         date: dateString,
         tableNumber: selectedTable,
+        status: 'pending', // pending, paid
         items: billSummary.items.map(item => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity

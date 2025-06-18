@@ -11,11 +11,22 @@ import CreateBill from './pages/CreateBill';
 import MenuManagement from './pages/MenuManagement';
 import BillManagement from './pages/BillManagement';
 import Reports from './pages/Reports';
+import QRCodeManager from './pages/QRCodeManager';
+import PublicBill from './pages/PublicBill';
 
 import './index.css';
 
-// Main App component with conditional rendering
-const App = () => {
+// Public Routes (không cần authentication)
+const PublicRoutes = () => {
+  return (
+    <Routes>
+      <Route path="/bill/:tableNumber" element={<PublicBill />} />
+    </Routes>
+  );
+};
+
+// Protected Routes (cần authentication)
+const ProtectedRoutes = () => {
   const { isAuthenticated } = useApp();
 
   if (!isAuthenticated) {
@@ -29,9 +40,23 @@ const App = () => {
         <Route path="/menu" element={<MenuManagement />} />
         <Route path="/bills" element={<BillManagement />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/qr" element={<QRCodeManager />} />
       </Routes>
     </Layout>
   );
+};
+
+// Main App component with route handling
+const App = () => {
+  const currentPath = window.location.pathname;
+  
+  // Check if current path is a public route
+  if (currentPath.startsWith('/bill/')) {
+    return <PublicRoutes />;
+  }
+
+  // Otherwise, render protected routes
+  return <ProtectedRoutes />;
 };
 
 // Root component with providers

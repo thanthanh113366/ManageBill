@@ -29,7 +29,23 @@ const BillManagement = () => {
         ...doc.data()
       }));
       
-      setBills(billsData);
+      // Sắp xếp: đơn chưa thanh toán lên đầu, giữ nguyên logic thời gian trong mỗi nhóm
+      const sortedBills = billsData.sort((a, b) => {
+        // Kiểm tra trạng thái thanh toán
+        const aIsPending = !a.status || a.status === 'pending';
+        const bIsPending = !b.status || b.status === 'pending';
+        
+        // Nếu một đơn pending và một đơn đã thanh toán, đưa pending lên đầu
+        if (aIsPending && !bIsPending) return -1;
+        if (!aIsPending && bIsPending) return 1;
+        
+        // Nếu cùng trạng thái, sắp xếp theo thời gian (mới nhất lên đầu)
+        const timeA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return timeB - timeA;
+      });
+      
+      setBills(sortedBills);
       setLoading(false);
     });
 
@@ -140,19 +156,32 @@ const BillManagement = () => {
       // Load detailed information
       const detailedItems = await Promise.all(
         bill.items.map(async (item) => {
-          const menuItem = menuItems.find(m => m.id === item.menuItemId);
-          if (menuItem) {
-            const itemRevenue = menuItem.price * item.quantity;
-            const taxAmount = itemRevenue * (menuItem.tax / 100);
-            const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - taxAmount;
-            const itemProfit = profitPerItem * item.quantity;
+          // Handle regular menu items
+          if (item.menuItemId) {
+            const menuItem = menuItems.find(m => m.id === item.menuItemId);
+            if (menuItem) {
+              const itemRevenue = menuItem.price * item.quantity;
+              const taxAmount = itemRevenue * (menuItem.tax / 100);
+              const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - taxAmount;
+              const itemProfit = profitPerItem * item.quantity;
 
+              return {
+                ...item,
+                menuItem,
+                itemRevenue,
+                itemProfit,
+                taxAmount,
+                type: 'menu'
+              };
+            }
+          }
+          // Handle custom items
+          else if (item.customDescription) {
             return {
               ...item,
-              menuItem,
-              itemRevenue,
-              itemProfit,
-              taxAmount
+              itemRevenue: item.customAmount,
+              itemProfit: item.customAmount,
+              type: 'custom'
             };
           }
           return null;
@@ -353,24 +382,50 @@ const BillManagement = () => {
                       Chi tiết đơn hàng
                     </h4>
                     <div className="space-y-2">
-                      {billDetails[bill.id].map((item, index) => (
-                        <div key={index} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-md">
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-900">
-                                {item.menuItem.name}
-                              </span>
-                              <span className="text-sm text-gray-600">
-                                x {item.quantity}
-                              </span>
+                      {billDetails[bill.id].map((item, index) => {
+                        if (item.type === 'menu') {
+                          return (
+                            <div key={index} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-md">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {item.menuItem.name}
+                                  </span>
+                                  <span className="text-sm text-gray-600">
+                                    x {item.quantity}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
+                                  <span>{formatCurrency(item.menuItem.price)}/món</span>
+                                  <span>Doanh thu: {formatCurrency(item.itemRevenue)}</span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                              <span>{formatCurrency(item.menuItem.price)}/món</span>
-                              <span>Doanh thu: {formatCurrency(item.itemRevenue)}</span>
+                          );
+                        } else if (item.type === 'custom') {
+                          return (
+                            <div key={index} className="flex justify-between items-center py-2 px-3 bg-blue-50 rounded-md border border-blue-200">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {item.customDescription}
+                                  </span>
+                                  <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                                    Món khác
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
+                                  <span>Tùy chỉnh</span>
+                                  <span className={`font-medium ${item.customAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {item.customAmount >= 0 ? '+' : ''}{formatCurrency(item.customAmount)}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      ))}
+                          );
+                        }
+                        return null;
+                      })}
                     </div>
                   </div>
                 )}

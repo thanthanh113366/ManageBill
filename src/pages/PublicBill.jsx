@@ -66,26 +66,43 @@ const PublicBill = () => {
 
   // Load bill details when bill changes
   useEffect(() => {
-    if (!bill || !menuItems.length) {
+    if (!bill) {
       setBillDetails([]);
       return;
     }
 
     const details = bill.items.map(item => {
-      const menuItem = menuItems.find(m => m.id === item.menuItemId);
-      if (!menuItem) return null;
+      // Handle regular menu items
+      if (item.menuItemId) {
+        const menuItem = menuItems.find(m => m.id === item.menuItemId);
+        if (!menuItem) return null;
 
-      const itemTotal = menuItem.price * item.quantity;
-      const taxAmount = itemTotal * (menuItem.tax / 100);
-      const finalPrice = itemTotal + taxAmount;
+        const itemTotal = menuItem.price * item.quantity;
+        const taxAmount = itemTotal * (menuItem.tax / 100);
+        const finalPrice = itemTotal + taxAmount;
 
-      return {
-        ...item,
-        menuItem,
-        itemTotal,
-        taxAmount,
-        finalPrice
-      };
+        return {
+          ...item,
+          menuItem,
+          itemTotal,
+          taxAmount,
+          finalPrice,
+          type: 'menu'
+        };
+      }
+      // Handle custom items
+      else if (item.customDescription) {
+        return {
+          ...item,
+          customDescription: item.customDescription,
+          customAmount: item.customAmount,
+          itemTotal: item.customAmount,
+          taxAmount: 0,
+          finalPrice: item.customAmount,
+          type: 'custom'
+        };
+      }
+      return null;
     }).filter(Boolean);
 
     setBillDetails(details);
@@ -176,35 +193,62 @@ const PublicBill = () => {
           </div>
           
           <div className="divide-y divide-gray-100">
-            {billDetails.map((item, index) => (
-              <div key={index} className="px-6 py-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">
-                      {item.menuItem.name}
-                    </h4>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {formatCurrency(item.menuItem.price)} x {item.quantity}
-                      {item.menuItem.tax > 0 && (
-                        <span className="ml-2 text-xs">
-                          (Thuế {item.menuItem.tax}%)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium text-gray-900">
-                      {formatCurrency(item.finalPrice)}
-                    </div>
-                    {item.taxAmount > 0 && (
-                      <div className="text-xs text-gray-500">
-                        +{formatCurrency(item.taxAmount)} thuế
+            {billDetails.map((item, index) => {
+              if (item.type === 'menu') {
+                return (
+                  <div key={index} className="px-6 py-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">
+                          {item.menuItem.name}
+                        </h4>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {formatCurrency(item.menuItem.price)} x {item.quantity}
+                          {item.menuItem.tax > 0 && (
+                            <span className="ml-2 text-xs">
+                              (Thuế {item.menuItem.tax}%)
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
+                      <div className="text-right">
+                        <div className="font-medium text-gray-900">
+                          {formatCurrency(item.finalPrice)}
+                        </div>
+                        {item.taxAmount > 0 && (
+                          <div className="text-xs text-gray-500">
+                            +{formatCurrency(item.taxAmount)} thuế
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              } else if (item.type === 'custom') {
+                return (
+                  <div key={index} className="px-6 py-4 bg-blue-50">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">
+                          {item.customDescription}
+                        </h4>
+                        <div className="text-sm text-gray-500 mt-1">
+                          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                            Món khác
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-medium ${item.customAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {item.customAmount >= 0 ? '+' : ''}{formatCurrency(item.customAmount)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })}
           </div>
         </div>
 

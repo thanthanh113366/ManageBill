@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { X, Plus, Minus, Save, Trash2, ShoppingCart, Calculator } from 'lucide-react';
+import { X, Plus, Minus, Save, Trash2, ShoppingCart, Calculator, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 const EditBill = ({ bill, onClose, onUpdated }) => {
@@ -11,6 +11,14 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
   const [orderItems, setOrderItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  // States for custom item form
+  const [showCustomItemForm, setShowCustomItemForm] = useState(false);
+  const [customItem, setCustomItem] = useState({
+    description: '',
+    amount: '',
+    isValid: false
+  });
 
   // Categories
   const categories = [
@@ -25,17 +33,38 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
   useEffect(() => {
     if (bill && bill.items) {
       const initialItems = bill.items.map(item => {
-        const menuItem = menuItems.find(m => m.id === item.menuItemId);
-        return {
-          menuItemId: item.menuItemId,
-          menuItem: menuItem,
-          quantity: item.quantity
-        };
-      }).filter(item => item.menuItem); // Filter out items where menuItem is not found
+        // Handle regular menu items
+        if (item.menuItemId) {
+          const menuItem = menuItems.find(m => m.id === item.menuItemId);
+          return {
+            menuItemId: item.menuItemId,
+            menuItem: menuItem,
+            quantity: item.quantity,
+            type: 'menu'
+          };
+        }
+        // Handle custom items
+        else if (item.customDescription) {
+          return {
+            customDescription: item.customDescription,
+            customAmount: item.customAmount,
+            quantity: 1, // Custom items always have quantity 1
+            type: 'custom',
+            id: `custom_${Date.now()}_${Math.random()}` // Generate unique ID for custom items
+          };
+        }
+        return null;
+      }).filter(item => item !== null && (item.type === 'custom' || item.menuItem)); // Filter out items where menuItem is not found
       
       setOrderItems(initialItems);
     }
   }, [bill, menuItems]);
+
+  // Validate custom item
+  useEffect(() => {
+    const isValid = customItem.description.trim() !== '' && customItem.amount !== '' && !isNaN(parseFloat(customItem.amount));
+    setCustomItem(prev => ({ ...prev, isValid }));
+  }, [customItem.description, customItem.amount]);
 
   // Filter menu items by category
   const filteredMenuItems = menuItems.filter(item => item.category === selectedCategory);
@@ -43,7 +72,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
   // Get item count for each category
   const getCategoryItemCount = (categoryId) => {
     return orderItems.filter(orderItem => 
-      orderItem.menuItem && orderItem.menuItem.category === categoryId
+      orderItem.type === 'menu' && orderItem.menuItem && orderItem.menuItem.category === categoryId
     ).length;
   };
 
@@ -53,7 +82,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
 
   const addToOrder = (menuItem) => {
     setOrderItems(prev => {
-      const existingIndex = prev.findIndex(item => item.menuItemId === menuItem.id);
+      const existingIndex = prev.findIndex(item => item.type === 'menu' && item.menuItemId === menuItem.id);
       if (existingIndex >= 0) {
         const updated = [...prev];
         updated[existingIndex].quantity += 1;
@@ -62,19 +91,48 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
         return [...prev, {
           menuItemId: menuItem.id,
           menuItem: menuItem,
-          quantity: 1
+          quantity: 1,
+          type: 'menu'
         }];
       }
     });
   };
 
-  const updateQuantity = (menuItemId, newQuantity) => {
+  const addCustomItem = () => {
+    if (!customItem.isValid) return;
+
+    const newCustomItem = {
+      customDescription: customItem.description.trim(),
+      customAmount: parseFloat(customItem.amount),
+      quantity: 1,
+      type: 'custom',
+      id: `custom_${Date.now()}_${Math.random()}`
+    };
+
+    setOrderItems(prev => [...prev, newCustomItem]);
+    
+    // Reset form
+    setCustomItem({ description: '', amount: '', isValid: false });
+    setShowCustomItemForm(false);
+    
+    toast.success('Đã thêm món khác');
+  };
+
+  const updateQuantity = (itemId, newQuantity, itemType) => {
+    if (itemType === 'custom') {
+      // Custom items can't change quantity, only remove
+      if (newQuantity <= 0) {
+        removeFromOrder(itemId, itemType);
+      }
+      return;
+    }
+
     if (newQuantity <= 0) {
-      setOrderItems(prev => prev.filter(item => item.menuItemId !== menuItemId));
+      setOrderItems(prev => prev.filter(item => !(item.type === 'menu' && item.menuItemId === itemId)));
     } else {
       setOrderItems(prev => 
         prev.map(item => 
-          item.menuItemId === menuItemId 
+          item.type === 'menu' && item.menuItemId === itemId 
             ? { ...item, quantity: newQuantity }
             : item
         )
@@ -82,8 +140,12 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
     }
   };
 
-  const removeFromOrder = (menuItemId) => {
-    setOrderItems(prev => prev.filter(item => item.menuItemId !== menuItemId));
+  const removeFromOrder = (itemId, itemType = 'menu') => {
+    if (itemType === 'custom') {
+      setOrderItems(prev => prev.filter(item => !(item.type === 'custom' && item.id === itemId)));
+    } else {
+      setOrderItems(prev => prev.filter(item => !(item.type === 'menu' && item.menuItemId === itemId)));
+    }
   };
 
   const calculateTotals = () => {
@@ -93,18 +155,24 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
     let totalFixedCost = 0;
 
     orderItems.forEach(item => {
-      const { menuItem, quantity } = item;
-      const itemRevenue = menuItem.price * quantity;
-      const taxAmount = itemRevenue * (menuItem.tax / 100);
-      const itemCost = menuItem.costPrice * quantity;
-      const itemFixedCost = menuItem.fixedCost * quantity;
-      const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - taxAmount;
-      const itemProfit = profitPerItem * quantity;
+      if (item.type === 'menu') {
+        const { menuItem, quantity } = item;
+        const itemRevenue = menuItem.price * quantity;
+        const taxAmount = itemRevenue * (menuItem.tax / 100);
+        const itemCost = menuItem.costPrice * quantity;
+        const itemFixedCost = menuItem.fixedCost * quantity;
+        const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - taxAmount;
+        const itemProfit = profitPerItem * quantity;
 
-      totalRevenue += itemRevenue;
-      totalProfit += itemProfit;
-      totalCost += itemCost;
-      totalFixedCost += itemFixedCost;
+        totalRevenue += itemRevenue;
+        totalProfit += itemProfit;
+        totalCost += itemCost;
+        totalFixedCost += itemFixedCost;
+      } else if (item.type === 'custom') {
+        // Custom items add directly to revenue and profit (no cost calculation)
+        totalRevenue += item.customAmount;
+        totalProfit += item.customAmount;
+      }
     });
 
     return { totalRevenue, totalProfit, totalCost, totalFixedCost };
@@ -121,10 +189,19 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
     setIsSubmitting(true);
     try {
       const billData = {
-        items: orderItems.map(item => ({
-          menuItemId: item.menuItemId,
-          quantity: item.quantity
-        })),
+        items: orderItems.map(item => {
+          if (item.type === 'menu') {
+            return {
+              menuItemId: item.menuItemId,
+              quantity: item.quantity
+            };
+          } else if (item.type === 'custom') {
+            return {
+              customDescription: item.customDescription,
+              customAmount: item.customAmount
+            };
+          }
+        }),
         totalRevenue,
         totalProfit,
         totalCost,
@@ -250,7 +327,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                       <div className="flex items-center space-x-2">
                         {quantity > 0 && (
                           <button
-                            onClick={() => updateQuantity(item.id, quantity - 1)}
+                            onClick={() => updateQuantity(item.id, quantity - 1, 'menu')}
                             className="p-1 hover:bg-gray-200 rounded"
                           >
                             <Minus size={14} />
@@ -267,7 +344,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                       
                       {quantity > 0 && (
                         <button
-                          onClick={() => removeFromOrder(item.id)}
+                          onClick={() => removeFromOrder(item.id, 'menu')}
                           className="text-red-600 hover:text-red-800 text-xs"
                         >
                           Xóa
@@ -291,6 +368,72 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
                 </div>
               </div>
             )}
+
+            {/* Add Custom Item Button */}
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowCustomItemForm(!showCustomItemForm)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors"
+              >
+                <FileText size={18} />
+                <span>Thêm món khác</span>
+              </button>
+
+              {/* Custom Item Form */}
+              {showCustomItemForm && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+                  <h4 className="font-medium text-gray-900 mb-3">Thêm món khác</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mô tả món
+                      </label>
+                      <input
+                        type="text"
+                        value={customItem.description}
+                        onChange={(e) => setCustomItem(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="VD: Tóp mỡ, Bớt tiền ốc hương..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Số tiền (VND)
+                      </label>
+                      <input
+                        type="number"
+                        value={customItem.amount}
+                        onChange={(e) => setCustomItem(prev => ({ ...prev, amount: e.target.value }))}
+                        placeholder="VD: 5000, -10000"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Nhập số âm để giảm tiền (VD: -10000)
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={addCustomItem}
+                        disabled={!customItem.isValid}
+                        className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <Plus size={16} />
+                        Thêm
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCustomItemForm(false);
+                          setCustomItem({ description: '', amount: '', isValid: false });
+                        }}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                      >
+                        Hủy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Order Summary */}
@@ -307,47 +450,84 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
               </div>
             ) : (
               <div className="space-y-4 mb-6">
-                {orderItems.map(item => (
-                  <div key={item.menuItemId} className="bg-gray-50 rounded-lg p-5 border">
-                    <div className="flex justify-between items-start mb-4">
-                      <h4 className="font-semibold text-gray-900 text-lg">
-                        {item.menuItem.name}
-                      </h4>
-                      <button
-                        onClick={() => removeFromOrder(item.menuItemId)}
-                        className="text-red-600 hover:text-red-800 ml-3 p-1 hover:bg-red-50 rounded-full"
-                      >
-                        <X size={20} />
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <button
-                          onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
-                          className="p-3 hover:bg-gray-200 rounded-full bg-white border"
-                        >
-                          <Minus size={20} />
-                        </button>
-                        <span className="w-16 text-center text-xl font-bold">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
-                          className="p-3 hover:bg-gray-200 rounded-full bg-white border"
-                        >
-                          <Plus size={20} />
-                        </button>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-base text-gray-600">
-                          {formatCurrency(item.menuItem.price)} x {item.quantity}
+                {orderItems.map(item => {
+                  if (item.type === 'menu') {
+                    return (
+                      <div key={item.menuItemId} className="bg-gray-50 rounded-lg p-5 border">
+                        <div className="flex justify-between items-start mb-4">
+                          <h4 className="font-semibold text-gray-900 text-lg">
+                            {item.menuItem.name}
+                          </h4>
+                          <button
+                            onClick={() => removeFromOrder(item.menuItemId, 'menu')}
+                            className="text-red-600 hover:text-red-800 ml-3 p-1 hover:bg-red-50 rounded-full"
+                          >
+                            <X size={20} />
+                          </button>
                         </div>
-                        <div className="font-bold text-xl text-green-600">
-                          {formatCurrency(item.menuItem.price * item.quantity)}
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <button
+                              onClick={() => updateQuantity(item.menuItemId, item.quantity - 1, 'menu')}
+                              className="p-3 hover:bg-gray-200 rounded-full bg-white border"
+                            >
+                              <Minus size={20} />
+                            </button>
+                            <span className="w-16 text-center text-xl font-bold">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.menuItemId, item.quantity + 1, 'menu')}
+                              className="p-3 hover:bg-gray-200 rounded-full bg-white border"
+                            >
+                              <Plus size={20} />
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-base text-gray-600">
+                              {formatCurrency(item.menuItem.price)} x {item.quantity}
+                            </div>
+                            <div className="font-bold text-xl text-green-600">
+                              {formatCurrency(item.menuItem.price * item.quantity)}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  } else if (item.type === 'custom') {
+                    return (
+                      <div key={item.id} className="bg-blue-50 rounded-lg p-5 border border-blue-200">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="font-semibold text-gray-900 text-lg">
+                              {item.customDescription}
+                            </h4>
+                            <span className="inline-block mt-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                              Món khác
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => removeFromOrder(item.id, 'custom')}
+                            className="text-red-600 hover:text-red-800 ml-3 p-1 hover:bg-red-50 rounded-full"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-gray-600">
+                            Không thể thay đổi số lượng
+                          </div>
+                          <div className="text-right">
+                            <div className={`font-bold text-xl ${item.customAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {item.customAmount >= 0 ? '+' : ''}{formatCurrency(item.customAmount)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
               </div>
             )}
 

@@ -1,15 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useParams, useNavigate } from 'react-router-dom';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Clock, Receipt, CheckCircle } from 'lucide-react';
+import { Clock, Receipt, CheckCircle, ArrowLeftRight, ChevronDown, X } from 'lucide-react';
 
 const PublicBill = () => {
   const { tableNumber } = useParams();
+  const navigate = useNavigate();
   const [bill, setBill] = useState(null);
   const [billDetails, setBillDetails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [showTableSwitcher, setShowTableSwitcher] = useState(false);
+
+  // Load tables for table switching
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      query(collection(db, 'tables'), orderBy('number')), 
+      (snapshot) => {
+        const tablesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setTables(tablesData);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // Load menu items for reference
   useEffect(() => {
@@ -129,6 +148,17 @@ const PublicBill = () => {
     return { subtotal, totalTax, total };
   };
 
+  // Handle table switching
+  const handleTableSwitch = (newTableNumber) => {
+    navigate(`/bill/${newTableNumber}`);
+    setShowTableSwitcher(false);
+  };
+
+  // Get available tables (excluding current table)
+  const getAvailableTables = () => {
+    return tables.filter(table => table.number.toString() !== tableNumber);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -142,22 +172,122 @@ const PublicBill = () => {
 
   if (!bill) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Receipt className="w-8 h-8 text-gray-400" />
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* No Bill Card */}
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center relative">
+            {/* Table switcher button */}
+            {getAvailableTables().length > 0 && (
+              <button
+                onClick={() => setShowTableSwitcher(true)}
+                className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                title="Chuyển bàn khác"
+              >
+                <ArrowLeftRight size={20} />
+              </button>
+            )}
+            
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Receipt className="w-8 h-8 text-gray-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Chưa có hóa đơn
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Bàn {tableNumber} chưa có hóa đơn nào hoặc đã thanh toán xong.
+            </p>
+            <div className="text-center text-sm text-gray-500">
+              <Clock className="w-4 h-4 inline mr-1" />
+              Hóa đơn sẽ hiển thị tự động khi có order mới
+            </div>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Chưa có hóa đơn
-          </h2>
-          <p className="text-gray-600 mb-4">
-            Bàn {tableNumber} chưa có hóa đơn nào hoặc đã thanh toán xong.
-          </p>
+
+          {/* QR Code Section */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Mã QR thanh toán
+              </h3>
+              <div className="flex justify-center mb-4">
+                <img 
+                  src="/my_qr.jpg" 
+                  alt="QR Code thanh toán" 
+                  className="w-48 h-48 object-contain border border-gray-200 rounded-lg"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'block';
+                  }}
+                />
+                <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-sm" style={{display: 'none'}}>
+                  QR Code không khả dụng
+                </div>
+              </div>
+              <p className="text-sm text-gray-600">
+                Quét mã QR để thanh toán qua ví điện tử
+              </p>
+            </div>
+          </div>
+
+          {/* Footer */}
           <div className="text-center text-sm text-gray-500">
-            <Clock className="w-4 h-4 inline mr-1" />
-            Hóa đơn sẽ hiển thị tự động khi có order mới
+            <p>Cảm ơn quý khách đã sử dụng dịch vụ!</p>
           </div>
         </div>
+
+        {/* Table Switcher Modal */}
+        {showTableSwitcher && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-sm w-full max-h-[80vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Chuyển sang bàn khác
+                </h3>
+                <button
+                  onClick={() => setShowTableSwitcher(false)}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              {/* Table List */}
+              <div className="p-4">
+                <p className="text-sm text-gray-600 mb-4">
+                  Chọn bàn bạn muốn xem hóa đơn:
+                </p>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {getAvailableTables().map((table) => (
+                    <button
+                      key={table.id}
+                      onClick={() => handleTableSwitch(table.number)}
+                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            Bàn {table.number}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {table.seats} chỗ ngồi
+                            {table.description && ` • ${table.description}`}
+                          </div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-gray-400 transform -rotate-90" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+                {getAvailableTables().length === 0 && (
+                  <p className="text-center text-gray-500 py-8">
+                    Không có bàn khác để chuyển
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -168,7 +298,18 @@ const PublicBill = () => {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-t-lg shadow-lg p-6 text-center border-b">
+        <div className="bg-white rounded-t-lg shadow-lg p-6 text-center border-b relative">
+          {/* Table switcher button */}
+          {getAvailableTables().length > 0 && (
+            <button
+              onClick={() => setShowTableSwitcher(true)}
+              className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+              title="Chuyển bàn khác"
+            >
+              <ArrowLeftRight size={20} />
+            </button>
+          )}
+          
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Quán Ốc
           </h1>
@@ -301,11 +442,92 @@ const PublicBill = () => {
           </div>
         </div>
 
+        {/* QR Code Section */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Mã QR thanh toán
+            </h3>
+            <div className="flex justify-center mb-4">
+              <img 
+                src="/my_qr.jpg" 
+                alt="QR Code thanh toán" 
+                className="w-48 h-48 object-contain border border-gray-200 rounded-lg"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'block';
+                }}
+              />
+              <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-sm" style={{display: 'none'}}>
+                QR Code không khả dụng
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              Quét mã QR để thanh toán qua ví điện tử
+            </p>
+          </div>
+        </div>
+
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-gray-500">
           <p>Cảm ơn quý khách đã sử dụng dịch vụ!</p>
         </div>
       </div>
+
+      {/* Table Switcher Modal */}
+      {showTableSwitcher && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-sm w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Chuyển sang bàn khác
+              </h3>
+              <button
+                onClick={() => setShowTableSwitcher(false)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Table List */}
+            <div className="p-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Chọn bàn bạn muốn xem hóa đơn:
+              </p>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {getAvailableTables().map((table) => (
+                  <button
+                    key={table.id}
+                    onClick={() => handleTableSwitch(table.number)}
+                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          Bàn {table.number}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {table.seats} chỗ ngồi
+                          {table.description && ` • ${table.description}`}
+                        </div>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-gray-400 transform -rotate-90" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+              
+              {getAvailableTables().length === 0 && (
+                <p className="text-center text-gray-500 py-8">
+                  Không có bàn khác để chuyển
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

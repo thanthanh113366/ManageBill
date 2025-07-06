@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock } from 'lucide-react';
+import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package } from 'lucide-react';
 import { toast } from 'react-toastify';
 import EditBill from '../components/EditBill';
 
 const BillManagement = () => {
-  const { menuItems } = useApp();
+  const { menuItems, tables } = useApp();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -15,6 +15,7 @@ const BillManagement = () => {
   const [billDetails, setBillDetails] = useState({});
   const [editingBill, setEditingBill] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(null);
+  const [showPublicBillModal, setShowPublicBillModal] = useState(false);
 
   useEffect(() => {
     const q = query(
@@ -197,11 +198,36 @@ const BillManagement = () => {
 
   const getTotalSummary = () => {
     const totalRevenue = bills.reduce((sum, bill) => sum + bill.totalRevenue, 0);
+    const totalProfit = bills.reduce((sum, bill) => sum + (bill.totalProfit || 0), 0);
     const totalBills = bills.length;
     const paidBills = bills.filter(bill => bill.status === 'paid').length;
     const pendingBills = bills.filter(bill => bill.status === 'pending').length;
     
-    return { totalRevenue, totalBills, paidBills, pendingBills };
+    // Calculate total cost price and fixed cost from all bill items
+    let totalCostPrice = 0;
+    let totalFixedCost = 0;
+    
+    bills.forEach(bill => {
+      bill.items.forEach(item => {
+        if (item.menuItemId) {
+          const menuItem = menuItems.find(m => m.id === item.menuItemId);
+          if (menuItem) {
+            totalCostPrice += (menuItem.costPrice || 0) * item.quantity;
+            totalFixedCost += (menuItem.fixedCost || 0) * item.quantity;
+          }
+        }
+      });
+    });
+    
+    return { 
+      totalRevenue, 
+      totalProfit, 
+      totalCostPrice, 
+      totalFixedCost, 
+      totalBills, 
+      paidBills, 
+      pendingBills 
+    };
   };
 
   const handleEditBill = (bill) => {
@@ -211,6 +237,23 @@ const BillManagement = () => {
   const handleBillUpdated = () => {
     // Bills will be automatically updated via the onSnapshot listener
     // No need to manually refetch data
+  };
+
+  const handleOpenPublicBill = (tableNumber) => {
+    window.open(`/bill/${tableNumber}`, '_blank');
+    setShowPublicBillModal(false);
+  };
+
+  const getActiveTables = () => {
+    // Get tables that have active bills for today
+    const activeTables = new Set();
+    bills.filter(bill => bill.status === 'pending').forEach(bill => {
+      if (bill.tableNumber) {
+        activeTables.add(bill.tableNumber);
+      }
+    });
+    
+    return Array.from(activeTables).sort((a, b) => a - b);
   };
 
   if (loading) {
@@ -240,14 +283,25 @@ const BillManagement = () => {
             </p>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-gray-400" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowPublicBillModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              title="Mở trang khách hàng"
+            >
+              <ExternalLink size={16} />
+              <span>Trang khách</span>
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-5 h-5 text-gray-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -436,53 +490,101 @@ const BillManagement = () => {
       </div>
 
       {/* Summary Cards - Moved to bottom */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="w-6 h-6 text-blue-600" />
+      <div className="space-y-6">
+        {/* Operational Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FileText className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Tổng đơn</p>
+                <p className="text-2xl font-bold text-gray-900">{summary.totalBills}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-600">Tổng đơn</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.totalBills}</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Clock className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Chờ thanh toán</p>
+                <p className="text-2xl font-bold text-yellow-600">{summary.pendingBills}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Đã thanh toán</p>
+                <p className="text-2xl font-bold text-green-600">{summary.paidBills}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Doanh thu</p>
+                <p className="text-xl font-bold text-green-600">
+                  {formatCurrency(summary.totalRevenue)}
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-600">Chờ thanh toán</p>
-              <p className="text-2xl font-bold text-yellow-600">{summary.pendingBills}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-600">Đã thanh toán</p>
-              <p className="text-2xl font-bold text-green-600">{summary.paidBills}</p>
+        {/* Financial Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <TrendingUp className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Lợi nhuận</p>
+                <p className="text-xl font-bold text-emerald-600">
+                  {formatCurrency(summary.totalProfit)}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <div className="w-6 h-6 text-green-600 font-bold">₫</div>
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Package className="w-6 h-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Chi phí cố định</p>
+                <p className="text-xl font-bold text-orange-600">
+                  {formatCurrency(summary.totalFixedCost)}
+                </p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-600">Doanh thu</p>
-              <p className="text-xl font-bold text-green-600">
-                {formatCurrency(summary.totalRevenue)}
-              </p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <div className="w-6 h-6 text-red-600 font-bold text-lg">₫</div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Vốn</p>
+                <p className="text-xl font-bold text-red-600">
+                  {formatCurrency(summary.totalCostPrice)}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -495,6 +597,105 @@ const BillManagement = () => {
           onClose={() => setEditingBill(null)}
           onUpdated={handleBillUpdated}
         />
+      )}
+
+      {/* Public Bill Modal */}
+      {showPublicBillModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Mở trang khách hàng
+              </h3>
+              <button
+                onClick={() => setShowPublicBillModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <FileText size={20} />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Chọn bàn để mở trang xem hóa đơn cho khách hàng:
+              </p>
+              
+              {/* Active Tables */}
+              {getActiveTables().length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">
+                    Bàn có đơn hàng chưa thanh toán:
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {getActiveTables().map((tableNumber) => (
+                      <button
+                        key={tableNumber}
+                        onClick={() => handleOpenPublicBill(tableNumber)}
+                        className="w-full text-left p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 hover:border-green-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              Bàn {tableNumber}
+                            </div>
+                            <div className="text-sm text-green-600">
+                              ● Có đơn hàng đang chờ
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* All Tables */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-900 mb-3">
+                  Tất cả bàn:
+                </h4>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {tables && tables.length > 0 ? tables.map((table) => (
+                    <button
+                      key={table.id}
+                      onClick={() => handleOpenPublicBill(table.number)}
+                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            Bàn {table.number}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {table.seats} chỗ ngồi
+                            {table.description && ` • ${table.description}`}
+                          </div>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </button>
+                  )) : (
+                    <p className="text-center text-gray-500 py-8">
+                      Chưa có bàn nào được thiết lập
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {getActiveTables().length === 0 && (!tables || tables.length === 0) && (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">
+                    Không có bàn nào để hiển thị
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

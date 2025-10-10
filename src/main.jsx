@@ -11,6 +11,7 @@ import CreateBill from './pages/CreateBill';
 import MenuManagement from './pages/MenuManagement';
 import BillManagement from './pages/BillManagement';
 import Reports from './pages/Reports';
+import DishAnalysis from './pages/DishAnalysis';
 import QRCodeManager from './pages/QRCodeManager';
 import PublicBill from './pages/PublicBill';
 
@@ -40,6 +41,7 @@ const ProtectedRoutes = () => {
         <Route path="/menu" element={<MenuManagement />} />
         <Route path="/bills" element={<BillManagement />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/dish-analysis" element={<DishAnalysis />} />
         <Route path="/qr" element={<QRCodeManager />} />
       </Routes>
     </Layout>

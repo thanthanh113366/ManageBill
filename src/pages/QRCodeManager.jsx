@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import TableQRCode from '../components/TableQRCode';
+import PaymentQRManager from '../components/PaymentQRManager';
 import { QrCode, Download, Printer, Settings } from 'lucide-react';
 
 const QRCodeManager = () => {
@@ -272,6 +273,9 @@ const QRCodeManager = () => {
           </div>
         </div>
       </div>
+
+      {/* Payment QR Manager */}
+      <PaymentQRManager />
 
       {/* QR Codes Grid */}
       <div className="bg-white rounded-lg shadow-sm border p-6">

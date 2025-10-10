@@ -13,6 +13,13 @@ const PublicBill = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [tables, setTables] = useState([]);
   const [showTableSwitcher, setShowTableSwitcher] = useState(false);
+  const [defaultQR, setDefaultQR] = useState('/my_qr_1.jpg');
+
+  // Load default QR from localStorage
+  useEffect(() => {
+    const savedQR = localStorage.getItem('defaultPaymentQR') || '/my_qr_1.jpg';
+    setDefaultQR(savedQR);
+  }, []);
 
   // Load tables for table switching
   useEffect(() => {
@@ -210,7 +217,7 @@ const PublicBill = () => {
               </h3>
               <div className="flex justify-center mb-4">
                 <img 
-                  src="/my_qr.jpg" 
+                  src={defaultQR} 
                   alt="QR Code thanh toán" 
                   className="w-48 h-48 object-contain border border-gray-200 rounded-lg"
                   onError={(e) => {
@@ -450,7 +457,7 @@ const PublicBill = () => {
             </h3>
             <div className="flex justify-center mb-4">
               <img 
-                src="/my_qr.jpg" 
+                src={defaultQR} 
                 alt="QR Code thanh toán" 
                 className="w-48 h-48 object-contain border border-gray-200 rounded-lg"
                 onError={(e) => {

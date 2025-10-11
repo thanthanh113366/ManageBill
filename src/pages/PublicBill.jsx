@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Clock, Receipt, CheckCircle, ArrowLeftRight, ChevronDown, X } from 'lucide-react';
+import { Clock, Receipt, CheckCircle, ArrowLeftRight, ChevronDown, X, UtensilsCrossed } from 'lucide-react';
 
 const PublicBill = () => {
   const { tableNumber } = useParams();
@@ -58,7 +58,7 @@ const PublicBill = () => {
 
     const q = query(
       collection(db, 'bills'),
-      where('tableNumber', '==', tableNumber),
+      where('tableNumber', '==', parseInt(tableNumber)),
       where('date', '==', today)
     );
 
@@ -82,13 +82,20 @@ const PublicBill = () => {
 
       setBill(activeBill || null);
       setLoading(false);
+      
+      // Nếu không có bill pending, redirect sang trang order
+      if (!activeBill) {
+        setTimeout(() => {
+          navigate(`/order/${tableNumber}`, { replace: true });
+        }, 100);
+      }
     }, (error) => {
       console.error('Error loading bill:', error);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [tableNumber]);
+  }, [tableNumber, navigate]);
 
   // Load bill details when bill changes
   useEffect(() => {
@@ -207,6 +214,17 @@ const PublicBill = () => {
               <Clock className="w-4 h-4 inline mr-1" />
               Hóa đơn sẽ hiển thị tự động khi có order mới
             </div>
+          </div>
+
+          {/* Order Button */}
+          <div className="mt-6">
+            <button
+              onClick={() => navigate(`/order/${tableNumber}`)}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center shadow-md"
+            >
+              <UtensilsCrossed className="w-5 h-5 mr-2" />
+              🍽️ Gọi món
+            </button>
           </div>
 
           {/* QR Code Section */}
@@ -445,6 +463,17 @@ const PublicBill = () => {
               <p className="text-xs text-gray-500">
                 💡 Hóa đơn này sẽ cập nhật tự động khi có thêm món mới
               </p>
+            </div>
+
+            {/* Order More Button */}
+            <div className="mt-6">
+              <button
+                onClick={() => navigate(`/order/${tableNumber}`)}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center shadow-md"
+              >
+                <UtensilsCrossed className="w-5 h-5 mr-2" />
+                🍽️ Gọi thêm món
+              </button>
             </div>
           </div>
         </div>

@@ -14,6 +14,8 @@ import Reports from './pages/Reports';
 import DishAnalysis from './pages/DishAnalysis';
 import QRCodeManager from './pages/QRCodeManager';
 import PublicBill from './pages/PublicBill';
+import CustomerOrder from './pages/CustomerOrder';
+import OrderSuccess from './pages/OrderSuccess';
 
 import './index.css';
 
@@ -22,6 +24,8 @@ const PublicRoutes = () => {
   return (
     <Routes>
       <Route path="/bill/:tableNumber" element={<PublicBill />} />
+      <Route path="/order/:tableNumber" element={<CustomerOrder />} />
+      <Route path="/order-success/:tableNumber" element={<OrderSuccess />} />
     </Routes>
   );
 };
@@ -53,7 +57,8 @@ const App = () => {
   const currentPath = window.location.pathname;
   
   // Check if current path is a public route
-  if (currentPath.startsWith('/bill/')) {
+  if (currentPath.startsWith('/bill/') || 
+      currentPath.startsWith('/order')) {
     return <PublicRoutes />;
   }
 

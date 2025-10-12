@@ -116,7 +116,7 @@ const CreateBill = () => {
       const billData = {
         createdAt: serverTimestamp(),
         date: dateString,
-        tableNumber: selectedTable,
+        tableNumber: parseInt(selectedTable), // Convert to number
         status: 'pending', // pending, paid
         items: billSummary.items.map(item => ({
           menuItemId: item.menuItemId,

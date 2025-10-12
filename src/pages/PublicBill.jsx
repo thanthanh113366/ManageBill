@@ -56,22 +56,48 @@ const PublicBill = () => {
 
     const today = new Date().toISOString().split('T')[0];
 
+    // Query tất cả bills của ngày hôm nay (không filter tableNumber trong query)
     const q = query(
       collection(db, 'bills'),
-      where('tableNumber', '==', parseInt(tableNumber)),
       where('date', '==', today)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const bills = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      console.log('📊 Bills snapshot:', snapshot.docs.length, 'bills found for today');
+      
+      // Filter manually để hỗ trợ cả string và number
+      const bills = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data
+          };
+        })
+        .filter(bill => {
+          // So sánh tableNumber: hỗ trợ cả string và number
+          const billTableNumber = bill.tableNumber;
+          const targetTableNumber = parseInt(tableNumber);
+          
+          const match = billTableNumber === targetTableNumber || 
+                       billTableNumber === tableNumber ||
+                       String(billTableNumber) === String(targetTableNumber);
+          
+          if (match) {
+            console.log('📋 Matched Bill:', bill.id, 'tableNumber:', billTableNumber, 'status:', bill.status);
+          }
+          
+          return match;
+        });
+      
+      console.log('🎯 Filtered bills for table', tableNumber, ':', bills.length);
       
       // Filter chỉ bills chưa thanh toán (hoặc chưa có status field)
       const pendingBills = bills.filter(bill => 
         !bill.status || bill.status === 'pending'
       );
+      
+      console.log('✅ Pending bills:', pendingBills.length);
       
       // Lấy bill mới nhất chưa thanh toán
       const activeBill = pendingBills.sort((a, b) => {
@@ -80,22 +106,16 @@ const PublicBill = () => {
         return timeB - timeA;
       })[0];
 
+      console.log('🎉 Active bill:', activeBill ? activeBill.id : 'null');
       setBill(activeBill || null);
       setLoading(false);
-      
-      // Nếu không có bill pending, redirect sang trang order
-      if (!activeBill) {
-        setTimeout(() => {
-          navigate(`/order/${tableNumber}`, { replace: true });
-        }, 100);
-      }
     }, (error) => {
       console.error('Error loading bill:', error);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [tableNumber, navigate]);
+  }, [tableNumber]);
 
   // Load bill details when bill changes
   useEffect(() => {

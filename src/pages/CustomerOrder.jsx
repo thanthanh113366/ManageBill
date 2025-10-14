@@ -10,7 +10,6 @@ const CATEGORIES = [
   { value: 'oc', label: 'Ốc' },
   { value: 'an_no', label: 'Ăn no' },
   { value: 'an_choi', label: 'Ăn chơi' },
-  { value: 'lai_rai', label: 'Lai rai' },
   { value: 'giai_khat', label: 'Giải khát' },
   { value: 'all', label: 'Tất cả' }
 ];
@@ -19,12 +18,30 @@ const CustomerOrder = () => {
   const { tableNumber } = useParams();
   const navigate = useNavigate();
   
+  const [orderItems, setOrderItems] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [quantities, setQuantities] = useState({});
   const [selectedCategory, setSelectedCategory] = useState('oc');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load menu items
+  // Load order items
+  useEffect(() => {
+    const q = query(collection(db, 'orderItems'), orderBy('category'), orderBy('name'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setOrderItems(items);
+    }, (error) => {
+      console.error('Error loading order items:', error);
+      toast.error('Không thể tải menu. Vui lòng thử lại!');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Load menu items for price reference
   useEffect(() => {
     const q = query(collection(db, 'menuItems'), orderBy('category'), orderBy('name'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -34,8 +51,7 @@ const CustomerOrder = () => {
       }));
       setMenuItems(items);
     }, (error) => {
-      console.error('Error loading menu:', error);
-      toast.error('Không thể tải menu. Vui lòng thử lại!');
+      console.error('Error loading menu items:', error);
     });
 
     return () => unsubscribe();
@@ -48,43 +64,47 @@ const CustomerOrder = () => {
     let totalItems = 0;
     const items = [];
 
-    Object.entries(quantities).forEach(([menuItemId, quantity]) => {
+    Object.entries(quantities).forEach(([orderItemId, quantity]) => {
       if (quantity > 0) {
-        const menuItem = menuItems.find(item => item.id === menuItemId);
-        if (menuItem) {
-          const itemRevenue = menuItem.price * quantity;
-          const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - (menuItem.price * menuItem.tax / 100);
-          const itemProfit = profitPerItem * quantity;
+        const orderItem = orderItems.find(item => item.id === orderItemId);
+        if (orderItem) {
+          // Get price from parent menu item
+          const parentMenuItem = menuItems.find(item => item.id === orderItem.parentMenuItemId);
+          if (parentMenuItem) {
+            const itemRevenue = parentMenuItem.price * quantity;
+            const profitPerItem = parentMenuItem.price - parentMenuItem.costPrice - parentMenuItem.fixedCost - (parentMenuItem.price * parentMenuItem.tax / 100);
+            const itemProfit = profitPerItem * quantity;
 
-          totalRevenue += itemRevenue;
-          totalProfit += itemProfit;
-          totalItems += quantity;
+            totalRevenue += itemRevenue;
+            totalProfit += itemProfit;
+            totalItems += quantity;
 
-          items.push({
-            menuItemId,
-            quantity,
-            name: menuItem.name,
-            price: menuItem.price,
-            revenue: itemRevenue
-          });
+            items.push({
+              orderItemId,
+              quantity,
+              name: orderItem.name,
+              price: parentMenuItem.price,
+              revenue: itemRevenue
+            });
+          }
         }
       }
     });
 
     return { items, totalRevenue, totalProfit, totalItems };
-  }, [quantities, menuItems]);
+  }, [quantities, orderItems, menuItems]);
 
-  const handleQuantityChange = (menuItemId, change) => {
+  const handleQuantityChange = (orderItemId, change) => {
     setQuantities(prev => {
-      const currentQuantity = prev[menuItemId] || 0;
+      const currentQuantity = prev[orderItemId] || 0;
       const newQuantity = Math.max(0, currentQuantity + change);
       
       if (newQuantity === 0) {
-        const { [menuItemId]: removed, ...rest } = prev;
+        const { [orderItemId]: removed, ...rest } = prev;
         return rest;
       }
       
-      return { ...prev, [menuItemId]: newQuantity };
+      return { ...prev, [orderItemId]: newQuantity };
     });
   };
 
@@ -98,7 +118,7 @@ const CustomerOrder = () => {
 
     try {
       const billItems = summary.items.map(item => ({
-        menuItemId: item.menuItemId,
+        orderItemId: item.orderItemId,
         quantity: item.quantity
       }));
 
@@ -124,14 +144,51 @@ const CustomerOrder = () => {
     return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
   };
 
-  const filteredMenuItems = useMemo(() => {
-    if (selectedCategory === 'all') return menuItems;
-    return menuItems.filter(item => item.category === selectedCategory);
-  }, [menuItems, selectedCategory]);
+  // Group order items by parent menu item
+  const groupedOrderItems = useMemo(() => {
+    const filtered = selectedCategory === 'all' 
+      ? orderItems 
+      : orderItems.filter(item => item.category === selectedCategory);
+    
+    // Group by parentMenuItemId
+    const grouped = {};
+    const standaloneItems = [];
+    
+    filtered.forEach(orderItem => {
+      const parentId = orderItem.parentMenuItemId;
+      
+      // Handle standalone items (like Lai rai items)
+      if (!parentId) {
+        standaloneItems.push(orderItem);
+        return;
+      }
+      
+      if (!grouped[parentId]) {
+        const parentMenuItem = menuItems.find(item => item.id === parentId);
+        grouped[parentId] = {
+          parentMenuItem,
+          orderItems: []
+        };
+      }
+      grouped[parentId].orderItems.push(orderItem);
+    });
+    
+    const groupedArray = Object.values(grouped).filter(group => group.parentMenuItem);
+    
+    // Add standalone items as individual groups
+    standaloneItems.forEach(item => {
+      groupedArray.push({
+        parentMenuItem: { id: `standalone-${item.id}`, name: item.name },
+        orderItems: [item]
+      });
+    });
+    
+    return groupedArray;
+  }, [orderItems, menuItems, selectedCategory]);
 
   const getCategoryCount = (categoryValue) => {
-    if (categoryValue === 'all') return menuItems.length;
-    return menuItems.filter(item => item.category === categoryValue).length;
+    if (categoryValue === 'all') return orderItems.length;
+    return orderItems.filter(item => item.category === categoryValue).length;
   };
 
   return (
@@ -169,51 +226,86 @@ const CustomerOrder = () => {
       </div>
 
       {/* Menu Items */}
-      <div className="p-4 space-y-3">
-        {filteredMenuItems.length === 0 ? (
+      <div className="p-4 space-y-4">
+        {groupedOrderItems.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
             <p className="text-gray-500">
-              {menuItems.length === 0 ? 'Đang tải menu...' : 'Không có món nào trong danh mục này'}
+              {orderItems.length === 0 ? 'Đang tải menu...' : 'Không có món nào trong danh mục này'}
             </p>
           </div>
         ) : (
-          filteredMenuItems.map((item) => {
-            const quantity = quantities[item.id] || 0;
-            
-            return (
-              <div key={item.id} className="bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 text-lg">{item.name}</h3>
-                    <p className="text-indigo-600 font-bold text-lg mt-1">
-                      {formatCurrency(item.price)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-end space-x-3">
-                  <button
-                    onClick={() => handleQuantityChange(item.id, -1)}
-                    disabled={quantity === 0}
-                    className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors active:scale-95"
-                  >
-                    <Minus size={20} />
-                  </button>
-                  
-                  <span className="w-12 text-center text-xl font-semibold text-gray-900">
-                    {quantity}
-                  </span>
-                  
-                  <button
-                    onClick={() => handleQuantityChange(item.id, 1)}
-                    className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-colors active:scale-95 shadow-md"
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
+          groupedOrderItems.map((group) => (
+            <div key={group.parentMenuItem.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+              {/* Parent Menu Item Header */}
+              <div className="bg-gray-50 px-4 py-3 border-b">
+                <h2 className="font-bold text-gray-900 text-lg">{group.parentMenuItem.name}</h2>
+                <p className="text-gray-600 text-sm">Chọn món con bên dưới</p>
               </div>
-            );
-          })
+              
+              {/* Order Items */}
+              <div className="p-4 space-y-3">
+                {group.orderItems.map((orderItem) => {
+                  const quantity = quantities[orderItem.id] || 0;
+                  // For standalone items, we need to get price from the orderItem itself or a default
+                  const price = group.parentMenuItem.id.startsWith('standalone-') 
+                    ? 25000 // Default price for Lai rai items
+                    : group.parentMenuItem.price; // Price from parent
+                  
+                  return (
+                    <div key={orderItem.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center space-x-3 flex-1">
+                        {/* Image */}
+                        {orderItem.imageUrl ? (
+                          <img 
+                            src={orderItem.imageUrl} 
+                            alt={orderItem.name}
+                            className="w-12 h-12 object-cover rounded-lg"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <span className="text-gray-400 text-xs">🍽️</span>
+                          </div>
+                        )}
+                        
+                        {/* Item Info */}
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">{orderItem.name}</h3>
+                          <p className="text-indigo-600 font-bold">
+                            {formatCurrency(price)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Quantity Controls */}
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => handleQuantityChange(orderItem.id, -1)}
+                          disabled={quantity === 0}
+                          className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors active:scale-95"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        
+                        <span className="w-8 text-center text-lg font-semibold text-gray-900">
+                          {quantity}
+                        </span>
+                        
+                        <button
+                          onClick={() => handleQuantityChange(orderItem.id, 1)}
+                          className="w-8 h-8 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-colors active:scale-95 shadow-md"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
         )}
       </div>
 

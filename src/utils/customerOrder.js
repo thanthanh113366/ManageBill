@@ -34,7 +34,7 @@ export const getActiveBillForTable = async (tableNumber) => {
 /**
  * Tạo đơn mới
  * @param {number|string} tableNumber - Số bàn
- * @param {Array} items - Danh sách món [{menuItemId, quantity}]
+ * @param {Array} items - Danh sách món [{orderItemId, quantity}]
  * @param {number} totalRevenue - Tổng doanh thu
  * @param {number} totalProfit - Tổng lợi nhuận
  * @returns {string} - Bill ID
@@ -70,22 +70,30 @@ export const createCustomerOrder = async (tableNumber, items, totalRevenue, tota
 const mergeItems = (existingItems, newItems) => {
   const itemsMap = new Map();
   
-  // Add existing items to map
+  // Add existing items to map (handle both menuItemId and orderItemId)
   existingItems.forEach(item => {
-    itemsMap.set(item.menuItemId, item.quantity);
+    const key = item.menuItemId || item.orderItemId;
+    itemsMap.set(key, item.quantity);
   });
   
   // Merge new items
   newItems.forEach(item => {
-    const currentQty = itemsMap.get(item.menuItemId) || 0;
-    itemsMap.set(item.menuItemId, currentQty + item.quantity);
+    const key = item.menuItemId || item.orderItemId;
+    const currentQty = itemsMap.get(key) || 0;
+    itemsMap.set(key, currentQty + item.quantity);
   });
   
-  // Convert back to array
-  return Array.from(itemsMap, ([menuItemId, quantity]) => ({
-    menuItemId,
-    quantity
-  }));
+  // Convert back to array (preserve original structure)
+  return Array.from(itemsMap, ([itemId, quantity]) => {
+    // Check if original items had menuItemId or orderItemId
+    const hasOrderItemId = newItems.some(item => item.orderItemId) || existingItems.some(item => item.orderItemId);
+    
+    if (hasOrderItemId) {
+      return { orderItemId: itemId, quantity };
+    } else {
+      return { menuItemId: itemId, quantity };
+    }
+  });
 };
 
 /**

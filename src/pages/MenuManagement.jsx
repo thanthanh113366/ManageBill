@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
-import { Plus, Edit, Trash2, X, Save, UtensilsCrossed, Table2 } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Save, UtensilsCrossed, Table2, ShoppingBag } from 'lucide-react';
 
 // Categories for menu items
 const CATEGORIES = [
@@ -14,6 +14,14 @@ const CATEGORIES = [
   { value: 'an_no', label: 'Ăn no' },
   { value: 'an_choi', label: 'Ăn chơi' },
   { value: 'lai_rai', label: 'Lai rai' },
+  { value: 'giai_khat', label: 'Giải khát' }
+];
+
+// Categories for order items (simplified)
+const ORDER_CATEGORIES = [
+  { value: 'oc', label: 'Ốc' },
+  { value: 'an_no', label: 'Ăn no' },
+  { value: 'an_choi', label: 'Ăn chơi' },
   { value: 'giai_khat', label: 'Giải khát' }
 ];
 
@@ -36,6 +44,14 @@ const menuSchema = yup.object({
     .min(0, 'Chi phí cố định phải lớn hơn hoặc bằng 0')
 });
 
+// Validation schema for order items
+const orderItemSchema = yup.object({
+  name: yup.string().required('Tên món là bắt buộc'),
+  category: yup.string().required('Danh mục là bắt buộc'),
+  parentMenuItemId: yup.string().required('Món cha là bắt buộc'),
+  imageUrl: yup.string().url('URL hình ảnh không hợp lệ')
+});
+
 // Validation schema for tables
 const tableSchema = yup.object({
   number: yup.number()
@@ -50,11 +66,12 @@ const tableSchema = yup.object({
 
 const TABS = [
   { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+  { id: 'orderItems', label: 'Món đặt hàng', icon: ShoppingBag },
   { id: 'tables', label: 'Bàn', icon: Table2 }
 ];
 
 const MenuManagement = () => {
-  const { menuItems, tables } = useApp();
+  const { menuItems, orderItems, tables } = useApp();
   const [activeTab, setActiveTab] = useState('menu');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -63,6 +80,11 @@ const MenuManagement = () => {
   // Menu form
   const menuForm = useForm({
     resolver: yupResolver(menuSchema)
+  });
+
+  // Order item form
+  const orderItemForm = useForm({
+    resolver: yupResolver(orderItemSchema)
   });
 
   // Table form
@@ -82,6 +104,11 @@ const MenuManagement = () => {
         menuForm.setValue('tax', item.tax);
         menuForm.setValue('costPrice', item.costPrice);
         menuForm.setValue('fixedCost', item.fixedCost);
+      } else if (type === 'orderItems') {
+        orderItemForm.setValue('name', item.name);
+        orderItemForm.setValue('category', item.category || 'oc');
+        orderItemForm.setValue('parentMenuItemId', item.parentMenuItemId);
+        orderItemForm.setValue('imageUrl', item.imageUrl || '');
       } else {
         tableForm.setValue('number', item.number);
         tableForm.setValue('seats', item.seats);
@@ -90,6 +117,8 @@ const MenuManagement = () => {
     } else {
       if (type === 'menu') {
         menuForm.reset();
+      } else if (type === 'orderItems') {
+        orderItemForm.reset();
       } else {
         tableForm.reset();
       }
@@ -101,6 +130,7 @@ const MenuManagement = () => {
     setEditingItem(null);
     setIsSubmitting(false);
     menuForm.reset();
+    orderItemForm.reset();
     tableForm.reset();
   };
 
@@ -120,6 +150,27 @@ const MenuManagement = () => {
     } catch (error) {
       console.error('Error saving menu item:', error);
       toast.error('Có lỗi xảy ra khi lưu món');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onSubmitOrderItem = async (data) => {
+    setIsSubmitting(true);
+
+    try {
+      if (editingItem && editingItem.id) {
+        await updateDoc(doc(db, 'orderItems', editingItem.id), data);
+        toast.success('Cập nhật món đặt hàng thành công!');
+      } else {
+        await addDoc(collection(db, 'orderItems'), data);
+        toast.success('Thêm món đặt hàng thành công!');
+      }
+      
+      closeModal();
+    } catch (error) {
+      console.error('Error saving order item:', error);
+      toast.error('Có lỗi xảy ra khi lưu món đặt hàng');
     } finally {
       setIsSubmitting(false);
     }
@@ -159,16 +210,31 @@ const MenuManagement = () => {
   };
 
   const handleDelete = async (item, type) => {
-    const itemName = type === 'menu' ? item.name : `Bàn ${item.number}`;
+    let itemName;
+    let collection_name;
+    let successMessage;
+    
+    if (type === 'menu') {
+      itemName = item.name;
+      collection_name = 'menuItems';
+      successMessage = 'Xóa món thành công!';
+    } else if (type === 'orderItems') {
+      itemName = item.name;
+      collection_name = 'orderItems';
+      successMessage = 'Xóa món đặt hàng thành công!';
+    } else {
+      itemName = `Bàn ${item.number}`;
+      collection_name = 'tables';
+      successMessage = 'Xóa bàn thành công!';
+    }
     
     if (window.confirm(`Bạn có chắc chắn muốn xóa ${itemName}?`)) {
       try {
-        const collection_name = type === 'menu' ? 'menuItems' : 'tables';
         await deleteDoc(doc(db, collection_name, item.id));
-        toast.success(`Xóa ${type === 'menu' ? 'món' : 'bàn'} thành công!`);
+        toast.success(successMessage);
       } catch (error) {
         console.error(`Error deleting ${type}:`, error);
-        toast.error(`Có lỗi xảy ra khi xóa ${type === 'menu' ? 'món' : 'bàn'}`);
+        toast.error(`Có lỗi xảy ra khi xóa ${type === 'menu' ? 'món' : type === 'orderItems' ? 'món đặt hàng' : 'bàn'}`);
       }
     }
   };
@@ -180,6 +246,16 @@ const MenuManagement = () => {
   const getCategoryLabel = (categoryValue) => {
     const category = CATEGORIES.find(cat => cat.value === categoryValue);
     return category ? category.label : categoryValue;
+  };
+
+  const getOrderCategoryLabel = (categoryValue) => {
+    const category = ORDER_CATEGORIES.find(cat => cat.value === categoryValue);
+    return category ? category.label : categoryValue;
+  };
+
+  const getParentMenuItemName = (parentMenuItemId) => {
+    const parentItem = menuItems.find(item => item.id === parentMenuItemId);
+    return parentItem ? parentItem.name : 'Không xác định';
   };
 
   const calculateProfit = (item) => {
@@ -227,7 +303,7 @@ const MenuManagement = () => {
               className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               <Plus size={20} className="mr-2" />
-              {activeTab === 'menu' ? 'Thêm món' : 'Thêm bàn'}
+              {activeTab === 'menu' ? 'Thêm món' : activeTab === 'orderItems' ? 'Thêm món đặt hàng' : 'Thêm bàn'}
             </button>
           </div>
 
@@ -349,6 +425,109 @@ const MenuManagement = () => {
             </>
           )}
 
+          {/* Order Items Tab Content */}
+          {activeTab === 'orderItems' && (
+            <>
+              {orderItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-4">
+                    <ShoppingBag size={48} className="mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Chưa có món đặt hàng nào
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Thêm món đặt hàng đầu tiên cho khách hàng
+                  </p>
+                  <button
+                    onClick={() => openModal(null, 'orderItems')}
+                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <Plus size={20} className="mr-2" />
+                    Thêm món đặt hàng
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tên món
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Danh mục
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Món cha
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Hình ảnh
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Thao tác
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {orderItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {item.name}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                              {getOrderCategoryLabel(item.category || 'oc')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {getParentMenuItemName(item.parentMenuItemId)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {item.imageUrl ? (
+                              <img 
+                                src={item.imageUrl} 
+                                alt={item.name}
+                                className="w-12 h-12 object-cover rounded-lg"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                <ShoppingBag size={20} className="text-gray-400" />
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end space-x-2">
+                              <button
+                                onClick={() => openModal(item, 'orderItems')}
+                                className="text-indigo-600 hover:text-indigo-900 p-1"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(item, 'orderItems')}
+                                className="text-red-600 hover:text-red-900 p-1"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Tables Tab Content */}
           {activeTab === 'tables' && (
             <>
@@ -419,8 +598,8 @@ const MenuManagement = () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-900">
                   {editingItem?.id 
-                    ? (editingItem?.type === 'menu' ? 'Chỉnh sửa món' : 'Chỉnh sửa bàn')
-                    : (activeTab === 'menu' ? 'Thêm món mới' : 'Thêm bàn mới')
+                    ? (editingItem?.type === 'menu' ? 'Chỉnh sửa món' : editingItem?.type === 'orderItems' ? 'Chỉnh sửa món đặt hàng' : 'Chỉnh sửa bàn')
+                    : (activeTab === 'menu' ? 'Thêm món mới' : activeTab === 'orderItems' ? 'Thêm món đặt hàng mới' : 'Thêm bàn mới')
                   }
                 </h2>
                 <button
@@ -556,6 +735,102 @@ const MenuManagement = () => {
                         <Save size={16} className="mr-2" />
                       )}
                       {editingItem?.id ? 'Cập nhật' : 'Thêm món'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Order Item Form */}
+              {(activeTab === 'orderItems' || editingItem?.type === 'orderItems') && (
+                <form onSubmit={orderItemForm.handleSubmit(onSubmitOrderItem)} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tên món đặt hàng *
+                    </label>
+                    <input
+                      type="text"
+                      {...orderItemForm.register('name')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Nhập tên món đặt hàng"
+                    />
+                    {orderItemForm.formState.errors.name && (
+                      <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.name.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Danh mục *
+                    </label>
+                    <select
+                      {...orderItemForm.register('category')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {ORDER_CATEGORIES.map((category) => (
+                        <option key={category.value} value={category.value}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                    {orderItemForm.formState.errors.category && (
+                      <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.category.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Món cha *
+                    </label>
+                    <select
+                      {...orderItemForm.register('parentMenuItemId')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">-- Chọn món cha --</option>
+                      {menuItems.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} ({getCategoryLabel(item.category)})
+                        </option>
+                      ))}
+                    </select>
+                    {orderItemForm.formState.errors.parentMenuItemId && (
+                      <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.parentMenuItemId.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      URL hình ảnh
+                    </label>
+                    <input
+                      type="url"
+                      {...orderItemForm.register('imageUrl')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="https://example.com/image.jpg"
+                    />
+                    {orderItemForm.formState.errors.imageUrl && (
+                      <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.imageUrl.message}</p>
+                    )}
+                  </div>
+
+                  <div className="flex space-x-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-400 transition-colors flex items-center justify-center"
+                    >
+                      {isSubmitting ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      ) : (
+                        <Save size={16} className="mr-2" />
+                      )}
+                      {editingItem?.id ? 'Cập nhật' : 'Thêm món đặt hàng'}
                     </button>
                   </div>
                 </form>

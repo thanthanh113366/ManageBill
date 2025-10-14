@@ -8,6 +8,13 @@ service cloud.firestore {
       allow write: if true; // Write cho admin (nên thêm auth sau)
     }
     
+    // Rules cho collection orderItems
+    // Khách hàng cần đọc để xem menu khi order
+    match /orderItems/{document} {
+      allow read: if true;  // Public read cho khách hàng
+      allow write: if true; // Write cho admin (nên thêm auth sau)
+    }
+    
     // Rules cho collection tables
     // Khách hàng cần đọc để xem thông tin bàn
     match /tables/{document} {

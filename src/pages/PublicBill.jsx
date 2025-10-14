@@ -11,6 +11,7 @@ const PublicBill = () => {
   const [billDetails, setBillDetails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
+  const [orderItems, setOrderItems] = useState([]);
   const [tables, setTables] = useState([]);
   const [showTableSwitcher, setShowTableSwitcher] = useState(false);
   const [defaultQR, setDefaultQR] = useState('/my_qr_1.jpg');
@@ -45,6 +46,19 @@ const PublicBill = () => {
         ...doc.data()
       }));
       setMenuItems(items);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Load order items for reference
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'orderItems'), (snapshot) => {
+      const items = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setOrderItems(items);
     });
 
     return () => unsubscribe();
@@ -141,6 +155,35 @@ const PublicBill = () => {
           taxAmount,
           finalPrice,
           type: 'menu'
+        };
+      }
+      // Handle order items (new flow)
+      else if (item.orderItemId) {
+        const orderItem = orderItems.find(o => o.id === item.orderItemId);
+        if (!orderItem) return null;
+
+        // Resolve price from parent menu item when available
+        const parent = orderItem.parentMenuItemId
+          ? menuItems.find(m => m.id === orderItem.parentMenuItemId)
+          : null;
+
+        const price = parent?.price ?? 25000; // default for standalone items
+        const tax = parent?.tax ?? 0;
+
+        const itemTotal = price * item.quantity;
+        const taxAmount = itemTotal * (tax / 100);
+        const finalPrice = itemTotal + taxAmount;
+
+        return {
+          ...item,
+          orderItem,
+          parentMenuItem: parent || null,
+          itemTotal,
+          taxAmount,
+          finalPrice,
+          price,
+          tax,
+          type: 'orderItem'
         };
       }
       // Handle custom items
@@ -393,6 +436,39 @@ const PublicBill = () => {
                           {item.menuItem.tax > 0 && (
                             <span className="ml-2 text-xs">
                               (Thuế {item.menuItem.tax}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium text-gray-900">
+                          {formatCurrency(item.finalPrice)}
+                        </div>
+                        {item.taxAmount > 0 && (
+                          <div className="text-xs text-gray-500">
+                            +{formatCurrency(item.taxAmount)} thuế
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              } else if (item.type === 'orderItem') {
+                return (
+                  <div key={index} className="px-6 py-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">
+                          {item.orderItem.name}
+                          {item.parentMenuItem && (
+                            <span className="ml-2 text-xs text-gray-500">({item.parentMenuItem.name})</span>
+                          )}
+                        </h4>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {formatCurrency(item.price)} x {item.quantity}
+                          {item.tax > 0 && (
+                            <span className="ml-2 text-xs">
+                              (Thuế {item.tax}%)
                             </span>
                           )}
                         </div>

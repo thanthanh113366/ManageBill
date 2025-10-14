@@ -163,7 +163,7 @@ const BillManagement = () => {
             if (menuItem) {
               const itemRevenue = menuItem.price * item.quantity;
               const taxAmount = itemRevenue * (menuItem.tax / 100);
-              const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - taxAmount;
+              const profitPerItem = menuItem.price - (menuItem.costPrice || 0) - (menuItem.fixedCost || 0) - taxAmount;
               const itemProfit = profitPerItem * item.quantity;
 
               return {
@@ -174,6 +174,48 @@ const BillManagement = () => {
                 taxAmount,
                 type: 'menu'
               };
+            }
+          }
+          // Handle order items linked to parent menu item
+          else if (item.orderItemId) {
+            // We only display the parent menu item in details
+            // We need access to orderItems; fetch on demand
+            // Import firestore inside function to avoid top-level changes
+            try {
+              const { getDocs, collection } = await import('firebase/firestore');
+              const { db } = await import('../config/firebase');
+              const snapshot = await getDocs(collection(db, 'orderItems'));
+              const orderItemDoc = snapshot.docs.find(d => d.id === item.orderItemId);
+              const orderItem = orderItemDoc ? { id: orderItemDoc.id, ...orderItemDoc.data() } : null;
+              const parent = orderItem?.parentMenuItemId ? menuItems.find(m => m.id === orderItem.parentMenuItemId) : null;
+              if (parent) {
+                const itemRevenue = parent.price * item.quantity;
+                const taxAmount = itemRevenue * ((parent.tax || 0) / 100);
+                const profitPerItem = parent.price - (parent.costPrice || 0) - (parent.fixedCost || 0) - taxAmount;
+                const itemProfit = profitPerItem * item.quantity;
+                return {
+                  ...item,
+                  menuItem: parent,
+                  itemRevenue,
+                  itemProfit,
+                  taxAmount,
+                  type: 'menu'
+                };
+              } else if (orderItem) {
+                // Standalone item (e.g., Lai rai) – show its own name with default price
+                const price = 25000;
+                const itemRevenue = price * item.quantity;
+                return {
+                  ...item,
+                  menuItem: { id: `standalone-${orderItem.id}`, name: orderItem.name, price, tax: 0 },
+                  itemRevenue,
+                  itemProfit: itemRevenue,
+                  taxAmount: 0,
+                  type: 'menu'
+                };
+              }
+            } catch (e) {
+              // ignore
             }
           }
           // Handle custom items

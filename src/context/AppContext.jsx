@@ -8,6 +8,7 @@ const AppContext = createContext();
 const initialState = {
   isAuthenticated: sessionStorage.getItem('isAuthenticated') === 'true',
   menuItems: [],
+  orderItems: [],
   tables: [],
   loading: false,
   error: null
@@ -20,6 +21,8 @@ const appReducer = (state, action) => {
       return { ...state, isAuthenticated: action.payload };
     case 'SET_MENU_ITEMS':
       return { ...state, menuItems: action.payload };
+    case 'SET_ORDER_ITEMS':
+      return { ...state, orderItems: action.payload };
     case 'SET_TABLES':
       return { ...state, tables: action.payload };
     case 'SET_LOADING':
@@ -48,6 +51,25 @@ export const AppProvider = ({ children }) => {
       }, (error) => {
         console.error('Error loading menu items:', error);
         dispatch({ type: 'SET_ERROR', payload: 'Lỗi tải danh sách món ăn' });
+      });
+
+      return () => unsubscribe();
+    }
+  }, [state.isAuthenticated]);
+
+  // Load order items from Firestore
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      const q = query(collection(db, 'orderItems'), orderBy('category'), orderBy('name'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const items = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        dispatch({ type: 'SET_ORDER_ITEMS', payload: items });
+      }, (error) => {
+        console.error('Error loading order items:', error);
+        dispatch({ type: 'SET_ERROR', payload: 'Lỗi tải danh sách món đặt hàng' });
       });
 
       return () => unsubscribe();

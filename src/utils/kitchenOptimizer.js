@@ -1,0 +1,305 @@
+/**
+ * Kitchen Optimization Utilities
+ * Thuật toán tối ưu hóa thứ tự làm món cho bếp
+ */
+
+/**
+ * Tính điểm ưu tiên cho một món ăn
+ * @param {Object} item - Món ăn với thông tin bill và timing
+ * @param {Date} currentTime - Thời gian hiện tại
+ * @returns {number} - Điểm ưu tiên (cao hơn = ưu tiên hơn)
+ */
+export const calculateScore = (item, currentTime) => {
+  const baseScore = 1000;
+  
+  // Thời gian chờ (phút) - đây là yếu tố quan trọng nhất
+  const waitingTime = (currentTime - item.createdAt) / 1000 / 60;
+  
+  // Các hệ số - tăng weight cho thời gian chờ
+  const waitingWeight = 50;    // Tăng từ 10 lên 50 - món chờ lâu = điểm cao hơn nhiều
+  const billOrderWeight = 10;  // Tăng từ 5 lên 10 - bill đặt trước = điểm cao hơn
+  const quantityWeight = 2;    // Số lượng nhiều = điểm cao
+  const priorityWeight = 50;   // Priority cao = điểm cao
+  
+  // Sử dụng timestamp thay vì billOrder nếu billOrder không có
+  const billTime = item.createdAt?.toDate?.() || new Date(item.createdAt);
+  const billAge = (currentTime - billTime) / 1000 / 60; // phút
+  
+  const score = baseScore 
+    - (waitingTime * waitingWeight)     // Món chờ lâu = điểm cao
+    - (billAge * billOrderWeight)       // Bill cũ = điểm cao
+    + (item.quantity * quantityWeight)  // Số lượng nhiều = điểm cao
+    + ((4 - item.priority) * priorityWeight); // Priority cao = điểm cao
+  
+  return Math.max(score, 1);
+};
+
+/**
+ * Tính thời gian dự kiến hoàn thành
+ * @param {Object} item - Món ăn
+ * @param {Object} timing - Thông tin timing của món
+ * @returns {number} - Thời gian dự kiến (phút)
+ */
+export const calculateEstimatedTime = (item, timing) => {
+  const baseTime = timing?.estimatedTime || 2; // Mặc định 2 phút
+  const quantity = item.quantity || 1;
+  
+  // Thời gian làm = thời gian cơ bản * số lượng
+  // Có thể điều chỉnh công thức này sau
+  return baseTime * quantity;
+};
+
+/**
+ * Sắp xếp danh sách món theo thứ tự tối ưu
+ * @param {Array} bills - Danh sách bills
+ * @param {Array} menuTimings - Danh sách timing của menu items
+ * @param {Array} orderItems - Danh sách order items để lấy tên món
+ * @returns {Array} - Danh sách món đã sắp xếp theo ưu tiên
+ */
+export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
+  const currentTime = new Date();
+  
+  // Tạo map để lookup timing nhanh hơn
+  const timingMap = new Map();
+  menuTimings.forEach(timing => {
+    timingMap.set(timing.menuItemId, timing);
+    timingMap.set(timing.orderItemId, timing);
+  });
+  
+  // Tạo map để lookup tên món từ orderItems
+  const orderItemsMap = new Map();
+  orderItems.forEach(item => {
+    orderItemsMap.set(item.id, item);
+  });
+  
+  // Flatten tất cả items từ bills và thêm thông tin cần thiết
+  const allItems = bills
+    .filter(bill => {
+      // Hiển thị tất cả bills trong ngày (kể cả completed)
+      return true;
+    })
+    .flatMap(bill => {
+      try {
+        return bill.items
+          .filter(item => {
+            // Hiển thị tất cả items (kể cả đã xong)
+            return true;
+          })
+          .flatMap(item => {
+          const timing = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
+          
+          // Tìm orderItem: thử orderItemId trước, sau đó thử menuItemId
+          let orderItem = orderItemsMap.get(item.orderItemId);
+          if (!orderItem && item.menuItemId) {
+            // Nếu không tìm thấy bằng orderItemId, tìm bằng menuItemId
+            // Cần tìm orderItem có parentMenuItemId = item.menuItemId
+            orderItem = Array.from(orderItemsMap.values()).find(oi => oi.parentMenuItemId === item.menuItemId);
+          }
+          const quantity = item.quantity || 1;
+          const completedCount = item.completedCount || 0;
+          
+          // Debug log (có thể bật lại khi cần debug)
+          // console.log(`Debug item name:`, {
+          //   orderItemId: item.orderItemId,
+          //   menuItemId: item.menuItemId,
+          //   orderItemFound: !!orderItem,
+          //   orderItemName: orderItem?.name,
+          //   itemName: item.name,
+          //   timingName: timing?.name,
+          //   finalName: orderItem?.name || item.name || timing?.name || `Món ID: ${item.orderItemId || item.menuItemId}`
+          // });
+          
+          // Tách món có số lượng nhiều thành nhiều món riêng biệt
+          // Hiển thị tất cả món (kể cả đã hoàn thành)
+          const totalQuantity = quantity; // Hiển thị tất cả
+          const remainingQuantity = Math.max(0, quantity - completedCount);
+          
+          const result = [];
+          
+          // Thêm món đã hoàn thành (hiển thị với status "ready")
+          for (let i = 0; i < completedCount; i++) {
+            // Tìm tên món với ưu tiên cao nhất
+            const itemName = orderItem?.name || 
+                           item.name || 
+                           timing?.name || 
+                           `Món ID: ${item.orderItemId || item.menuItemId}`;
+            
+            result.push({
+              ...item,
+              billId: bill.id,
+              tableNumber: bill.tableNumber,
+              billOrder: bill.billOrder || 999,
+              createdAt: bill.createdAt,
+              timing: timing,
+              kitchenStatus: 'ready', // Đã hoàn thành
+              name: itemName,
+              quantity: 1,
+              batchOrder: i + 1,
+              batchTotal: quantity,
+              originalQuantity: quantity,
+              score: calculateScore({
+                ...item,
+                billOrder: bill.billOrder || 999,
+                createdAt: bill.createdAt,
+                priority: timing?.priority || 1,
+                quantity: 1
+              }, currentTime),
+              estimatedTime: calculateEstimatedTime({ ...item, quantity: 1 }, timing),
+              isCompleted: true // Flag để phân biệt
+            });
+          }
+          
+          // Thêm món chưa hoàn thành (hiển thị với status "cooking")
+          for (let i = 0; i < remainingQuantity; i++) {
+            // Tìm tên món với ưu tiên cao nhất
+            const itemName = orderItem?.name || 
+                           item.name || 
+                           timing?.name || 
+                           `Món ID: ${item.orderItemId || item.menuItemId}`;
+            
+            result.push({
+              ...item,
+              billId: bill.id,
+              tableNumber: bill.tableNumber,
+              billOrder: bill.billOrder || 999,
+              createdAt: bill.createdAt,
+              timing: timing,
+              kitchenStatus: item.kitchenStatus || 'cooking',
+              name: itemName,
+              quantity: 1,
+              batchOrder: completedCount + i + 1,
+              batchTotal: quantity,
+              originalQuantity: quantity,
+              score: calculateScore({
+                ...item,
+                billOrder: bill.billOrder || 999,
+                createdAt: bill.createdAt,
+                priority: timing?.priority || 1,
+                quantity: 1
+              }, currentTime),
+              estimatedTime: calculateEstimatedTime({ ...item, quantity: 1 }, timing),
+              isCompleted: false
+            });
+          }
+          
+          return result;
+          });
+      } catch (error) {
+        console.error('Error processing bill items:', error);
+        return [];
+      }
+    });
+  
+  // Sắp xếp: món chưa xong lên đầu, món đã xong xuống cuối
+  return allItems.sort((a, b) => {
+    // Món chưa xong (cooking/pending) lên đầu
+    const aIsCompleted = a.isCompleted || a.kitchenStatus === 'ready';
+    const bIsCompleted = b.isCompleted || b.kitchenStatus === 'ready';
+    
+    // Nếu một món đã xong và một món chưa xong
+    if (aIsCompleted && !bIsCompleted) return 1;  // a xuống cuối
+    if (!aIsCompleted && bIsCompleted) return -1; // b xuống cuối
+    
+    // Nếu cùng trạng thái (cùng xong hoặc cùng chưa xong)
+    // Sắp xếp theo score (cao → thấp)
+    const scoreDiff = Math.abs(a.score - b.score);
+    if (scoreDiff > 10) {
+      return b.score - a.score;
+    }
+    
+    // Nếu score gần nhau, sắp xếp theo thời gian tạo bill (cũ hơn lên đầu)
+    const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt);
+    const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt);
+    return aTime - bTime;
+  });
+};
+
+/**
+ * Lọc món theo bàn
+ * @param {Array} items - Danh sách món
+ * @param {number|null} tableNumber - Số bàn (null = tất cả)
+ * @returns {Array} - Danh sách món đã lọc
+ */
+export const filterByTable = (items, tableNumber) => {
+  if (!tableNumber) return items;
+  return items.filter(item => item.tableNumber === tableNumber);
+};
+
+/**
+ * Nhóm món theo trạng thái
+ * @param {Array} items - Danh sách món
+ * @returns {Object} - Object với các nhóm trạng thái
+ */
+export const groupByStatus = (items) => {
+  return items.reduce((groups, item) => {
+    const status = item.kitchenStatus || 'pending';
+    if (!groups[status]) {
+      groups[status] = [];
+    }
+    groups[status].push(item);
+    return groups;
+  }, {});
+};
+
+/**
+ * Tính thống kê cho kitchen
+ * @param {Array} items - Danh sách món
+ * @returns {Object} - Thống kê
+ */
+export const calculateKitchenStats = (items) => {
+  const grouped = groupByStatus(items);
+  
+  return {
+    total: items.length,
+    pending: grouped.pending?.length || 0,
+    cooking: grouped.cooking?.length || 0,
+    ready: grouped.ready?.length || 0,
+    avgWaitingTime: calculateAvgWaitingTime(items)
+  };
+};
+
+/**
+ * Tính thời gian chờ trung bình
+ * @param {Array} items - Danh sách món
+ * @returns {number} - Thời gian chờ trung bình (phút)
+ */
+export const calculateAvgWaitingTime = (items) => {
+  if (items.length === 0) return 0;
+  
+  const currentTime = new Date();
+  const totalWaitingTime = items.reduce((sum, item) => {
+    const waitingTime = (currentTime - item.createdAt) / 1000 / 60;
+    return sum + waitingTime;
+  }, 0);
+  
+  return Math.round(totalWaitingTime / items.length);
+};
+
+/**
+ * Format thời gian hiển thị
+ * @param {number} minutes - Số phút
+ * @returns {string} - Chuỗi hiển thị
+ */
+export const formatTime = (minutes) => {
+  if (minutes < 60) {
+    return `${minutes} phút`;
+  } else {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}p`;
+  }
+};
+
+/**
+ * Format thời gian dự kiến
+ * @param {Date} startTime - Thời gian bắt đầu
+ * @param {number} estimatedMinutes - Số phút dự kiến
+ * @returns {string} - Chuỗi hiển thị thời gian hoàn thành
+ */
+export const formatEstimatedCompletion = (startTime, estimatedMinutes) => {
+  const completionTime = new Date(startTime.getTime() + estimatedMinutes * 60000);
+  return completionTime.toLocaleTimeString('vi-VN', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+};

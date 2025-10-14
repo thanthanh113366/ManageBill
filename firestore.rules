@@ -42,6 +42,13 @@ service cloud.firestore {
       allow delete: if true;
     }
     
+    // Rules cho collection menuItemTimings
+    // Admin cần đọc/ghi để quản lý timing món ăn
+    match /menuItemTimings/{document} {
+      allow read: if true;  // Public read cho bếp
+      allow write: if true; // Write cho admin (nên thêm auth sau)
+    }
+    
     // Rules cho collection config (passwords, settings...)
     match /config/{document} {
       allow read: if true;

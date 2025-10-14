@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package } from 'lucide-react';
+import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat } from 'lucide-react';
 import { toast } from 'react-toastify';
 import EditBill from '../components/EditBill';
+import KitchenManagement from '../components/KitchenManagement';
 
 const BillManagement = () => {
   const { menuItems, tables } = useApp();
@@ -16,6 +17,7 @@ const BillManagement = () => {
   const [editingBill, setEditingBill] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(null);
   const [showPublicBillModal, setShowPublicBillModal] = useState(false);
+  const [showKitchenModal, setShowKitchenModal] = useState(false);
 
   useEffect(() => {
     const q = query(
@@ -326,6 +328,15 @@ const BillManagement = () => {
           </div>
           
           <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowKitchenModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              title="Quản lý bếp"
+            >
+              <ChefHat size={16} />
+              <span>Quản lý bếp</span>
+            </button>
+            
             <button
               onClick={() => setShowPublicBillModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
@@ -738,6 +749,14 @@ const BillManagement = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Kitchen Management Modal */}
+      {showKitchenModal && (
+        <KitchenManagement 
+          onClose={() => setShowKitchenModal(false)} 
+          selectedDate={selectedDate}
+        />
       )}
     </div>
   );

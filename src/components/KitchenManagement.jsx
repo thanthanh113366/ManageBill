@@ -85,7 +85,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center space-x-3">
@@ -161,22 +161,23 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
         </div>
 
         {/* Kitchen Queue */}
-        <div className="p-6">
-          {kitchenQueue.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🍽️</span>
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6">
+            {kitchenQueue.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🍽️</span>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Không có món nào</h3>
+                <p className="text-gray-500">Hiện tại không có món nào cần làm</p>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Không có món nào</h3>
-              <p className="text-gray-500">Hiện tại không có món nào cần làm</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
+            ) : (
+              <div className="space-y-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 🔥 Món cần làm (theo thứ tự ưu tiên)
               </h3>
               
-              {kitchenQueue.map((item, index) => (
+                {kitchenQueue.map((item, index) => (
                 <div
                   key={`${item.billId}-${item.orderItemId || item.menuItemId}-${item.batchOrder || index}`}
                   className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
@@ -238,9 +239,10 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Next Item Highlight */}

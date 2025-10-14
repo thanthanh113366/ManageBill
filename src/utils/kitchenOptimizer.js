@@ -59,14 +59,14 @@ export const calculateEstimatedTime = (item, timing) => {
 export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
   const currentTime = new Date();
   
-  // Tạo map để lookup timing nhanh hơn
+  // Tạo map để lookup timing từ menuItemTimings (fallback)
   const timingMap = new Map();
   menuTimings.forEach(timing => {
     timingMap.set(timing.menuItemId, timing);
     timingMap.set(timing.orderItemId, timing);
   });
   
-  // Tạo map để lookup tên món từ orderItems
+  // Tạo map để lookup thông tin món từ orderItems (primary source)
   const orderItemsMap = new Map();
   orderItems.forEach(item => {
     orderItemsMap.set(item.id, item);
@@ -86,14 +86,28 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
             return true;
           })
           .flatMap(item => {
-          const timing = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
-          
           // Tìm orderItem: thử orderItemId trước, sau đó thử menuItemId
           let orderItem = orderItemsMap.get(item.orderItemId);
           if (!orderItem && item.menuItemId) {
             // Nếu không tìm thấy bằng orderItemId, tìm bằng menuItemId
             // Cần tìm orderItem có parentMenuItemId = item.menuItemId
             orderItem = Array.from(orderItemsMap.values()).find(oi => oi.parentMenuItemId === item.menuItemId);
+          }
+          
+          // Tạo timing object từ orderItem (primary) hoặc menuItemTimings (fallback)
+          let timing = null;
+          if (orderItem) {
+            // Ưu tiên lấy từ orderItem
+            timing = {
+              speed: orderItem.speed || 'medium',
+              kitchenType: orderItem.kitchenType || 'cook',
+              estimatedTime: orderItem.estimatedTime || 2,
+              priority: orderItem.priority || 1,
+              name: orderItem.name
+            };
+          } else {
+            // Fallback về menuItemTimings
+            timing = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
           }
           const quantity = item.quantity || 1;
           const completedCount = item.completedCount || 0;

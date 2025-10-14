@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, deleteDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { calculateKitchenQueue, filterByTable, calculateKitchenStats } from '../utils/kitchenOptimizer';
 
@@ -276,6 +276,42 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
     return filteredQueue.filter(item => item.kitchenStatus === 'cooking');
   };
 
+  /**
+   * Xóa tất cả menuItemTimings để dọn dẹp database
+   */
+  const deleteAllMenuItemTimings = async () => {
+    try {
+      // Lấy tất cả menuItemTimings
+      const timingsQuery = query(collection(db, 'menuItemTimings'));
+      
+      const timingsSnapshot = await getDocs(timingsQuery);
+      
+      if (timingsSnapshot.empty) {
+        setError('Không có menuItemTimings nào để xóa');
+        return { success: false, count: 0 };
+      }
+
+      // Sử dụng batch để xóa nhiều documents cùng lúc
+      const batch = writeBatch(db);
+      
+      timingsSnapshot.docs.forEach((docSnapshot) => {
+        batch.delete(doc(db, 'menuItemTimings', docSnapshot.id));
+      });
+
+      await batch.commit();
+      
+      const deletedCount = timingsSnapshot.docs.length;
+      console.log(`✅ Đã xóa ${deletedCount} menuItemTimings`);
+      
+      return { success: true, count: deletedCount };
+      
+    } catch (error) {
+      console.error('Error deleting menuItemTimings:', error);
+      setError('Lỗi khi xóa menuItemTimings: ' + error.message);
+      return { success: false, count: 0 };
+    }
+  };
+
   return {
     // Data
     kitchenQueue: filteredQueue,
@@ -292,6 +328,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
     startCooking,
     completeCooking,
     undoCompleted,
+    deleteAllMenuItemTimings,
     
     // Utils
     clearError: () => setError(null)

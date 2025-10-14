@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Clock, CheckCircle, Play, Pause, Filter } from 'lucide-react';
+import { X, Clock, CheckCircle, Play, Pause, Filter, Trash2 } from 'lucide-react';
 import { useKitchenOrders } from '../hooks/useKitchenOrders';
 import { formatTime } from '../utils/kitchenOptimizer';
 
@@ -16,6 +16,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     startCooking,
     completeCooking,
     undoCompleted,
+    deleteAllMenuItemTimings,
     clearError
   } = useKitchenOrders(selectedTable, selectedDate);
 
@@ -29,6 +30,19 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
 
   const handleUndoCompleted = async (item) => {
     await undoCompleted(item.billId, item.orderItemId || item.menuItemId);
+  };
+
+  const handleDeleteAllMenuItemTimings = async () => {
+    const confirmMessage = `Bạn có chắc muốn xóa TẤT CẢ menuItemTimings?\n\nĐiều này sẽ:\n- Xóa tất cả thông tin timing của món\n- Không ảnh hưởng đến bills và đơn hàng\n- Có thể tạo lại bằng npm run migrate:kitchen\n\nHành động này KHÔNG THỂ HOÀN TÁC!`;
+    
+    if (window.confirm(confirmMessage)) {
+      const result = await deleteAllMenuItemTimings();
+      if (result.success) {
+        alert(`✅ Đã xóa thành công ${result.count} menuItemTimings!\n\nĐể tạo lại, chạy: npm run migrate:kitchen`);
+      } else {
+        alert('❌ Có lỗi xảy ra khi xóa menuItemTimings');
+      }
+    }
   };
 
   const getStatusIcon = (status) => {
@@ -84,25 +98,39 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
+      <div className="bg-white rounded-lg max-w-7xl w-full max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
               <span className="text-orange-600 text-xl">🍳</span>
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Quản lý bếp</h2>
-              <p className="text-sm text-gray-500">Tối ưu hóa thứ tự làm món</p>
-            </div>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Quản lý bếp</h2>
+            <p className="text-sm text-gray-500">Tối ưu hóa thứ tự làm món</p>
           </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          {/* Delete All MenuItemTimings Button */}
+          <button
+            onClick={handleDeleteAllMenuItemTimings}
+            className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+            title="Xóa tất cả menuItemTimings để dọn dẹp database"
+          >
+            <Trash2 size={14} />
+            <span>Dọn dẹp DB</span>
+          </button>
+          
+          {/* Close Button */}
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
+        </div>
         </div>
 
         {/* Error Alert */}
@@ -118,45 +146,79 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
           </div>
         )}
 
-        {/* Stats & Filters */}
-        <div className="p-6 border-b bg-gray-50">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <div className="text-sm text-gray-500">Tổng món</div>
-              <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+        {/* Table Overview */}
+        <div className="p-3 border-b bg-gray-50">
+          <h3 className="text-sm font-medium text-gray-900 mb-2">Tổng quan các bàn</h3>
+          
+          {/* Tables Grid */}
+          <div className="space-y-2">
+            {/* Row 1: Tables 1-4 */}
+            <div className="flex justify-center space-x-4">
+              {[1, 2, 3, 4].map(tableNum => {
+                const unfinishedCount = kitchenQueue.filter(item => 
+                  item.tableNumber === tableNum && 
+                  item.kitchenStatus !== 'ready'
+                ).length;
+                
+                return (
+                  <div key={tableNum} className="flex items-center space-x-1">
+                    {/* Table Number Circle */}
+                    <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                      {tableNum}
+                    </div>
+                    
+                    {/* Unfinished Dishes Circles */}
+                    <div className="flex space-x-0.5">
+                      {Array.from({ length: Math.min(unfinishedCount, 6) }, (_, index) => (
+                        <div
+                          key={index}
+                          className="w-2 h-2 bg-red-500 rounded-full border border-white"
+                        />
+                      ))}
+                      {unfinishedCount > 6 && (
+                        <div className="w-2 h-2 bg-gray-400 rounded-full border border-white flex items-center justify-center">
+                          <span className="text-xs text-white font-bold">+</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <div className="text-sm text-gray-500">Chờ làm</div>
-              <div className="text-2xl font-semibold text-red-600">{stats.pending}</div>
+            
+            {/* Row 2: Tables 5-8 */}
+            <div className="flex justify-center space-x-4">
+              {[5, 6, 7, 8].map(tableNum => {
+                const unfinishedCount = kitchenQueue.filter(item => 
+                  item.tableNumber === tableNum && 
+                  item.kitchenStatus !== 'ready'
+                ).length;
+                
+                return (
+                  <div key={tableNum} className="flex items-center space-x-1">
+                    {/* Table Number Circle */}
+                    <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                      {tableNum}
+                    </div>
+                    
+                    {/* Unfinished Dishes Circles */}
+                    <div className="flex space-x-0.5">
+                      {Array.from({ length: Math.min(unfinishedCount, 6) }, (_, index) => (
+                        <div
+                          key={index}
+                          className="w-2 h-2 bg-red-500 rounded-full border border-white"
+                        />
+                      ))}
+                      {unfinishedCount > 6 && (
+                        <div className="w-2 h-2 bg-gray-400 rounded-full border border-white flex items-center justify-center">
+                          <span className="text-xs text-white font-bold">+</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <div className="text-sm text-gray-500">Đang làm</div>
-              <div className="text-2xl font-semibold text-yellow-600">{stats.cooking}</div>
-            </div>
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              <div className="text-sm text-gray-500">Hoàn thành</div>
-              <div className="text-2xl font-semibold text-green-600">{stats.ready}</div>
-            </div>
-          </div>
-
-          {/* Filter by table */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-600">Lọc theo bàn:</span>
-            </div>
-            <select
-              value={selectedTable || ''}
-              onChange={(e) => setSelectedTable(e.target.value ? parseInt(e.target.value) : null)}
-              className="border border-gray-300 rounded-md px-3 py-1 text-sm"
-            >
-              <option value="">Tất cả bàn</option>
-              {availableTables.map(tableNum => (
-                <option key={tableNum} value={tableNum}>
-                  Bàn {tableNum}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
@@ -184,36 +246,42 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="text-sm font-medium text-gray-500">
-                          #{index + 1}
-                        </span>
-                        <span className="text-lg font-semibold text-gray-900">
-                          Bàn {item.tableNumber}
-                        </span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.kitchenStatus)}`}>
-                          {getStatusText(item.kitchenStatus)}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          Score: {Math.round(item.score)}
-                        </span>
-                      </div>
-                      
-                      <div className="text-gray-900 font-medium mb-1">
-                        {item.name}
-                        {item.batchTotal > 1 && (
-                          <span className="text-sm text-blue-600 ml-2">
-                            ({item.batchOrder}/{item.batchTotal})
+                      <div className="grid grid-cols-12 gap-4 items-center mb-2">
+                        <div className="col-span-1">
+                          <span className="text-lg font-bold text-indigo-600">
+                            #{index + 1}
                           </span>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <span>⏰ {formatTime(item.estimatedTime)}</span>
-                        <span>📊 Bill #{item.billOrder}</span>
-                        {item.startTime && (
-                          <span>🕐 Bắt đầu: {new Date(item.startTime.toDate()).toLocaleTimeString('vi-VN')}</span>
-                        )}
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-lg font-semibold text-gray-900">
+                            Bàn {item.tableNumber}
+                          </span>
+                        </div>
+                        <div className="col-span-4">
+                          <span className="text-xl font-bold text-gray-900">
+                            {item.name}
+                          </span>
+                          {item.batchTotal > 1 && (
+                            <span className="ml-2 text-sm text-gray-500">
+                              ({item.batchOrder}/{item.batchTotal})
+                            </span>
+                          )}
+                        </div>
+                        <div className="col-span-2">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(item.kitchenStatus)}`}>
+                            {getStatusText(item.kitchenStatus)}
+                          </span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-sm text-gray-500">
+                            ⏱️ {item.estimatedTime}p | Score: {Math.round(item.score)}
+                          </span>
+                        </div>
+                        <div className="col-span-1">
+                          <span className="text-xs text-gray-400">
+                            Bill #{item.billOrder}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     
@@ -244,6 +312,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
             )}
           </div>
         </div>
+
 
         {/* Next Item Highlight */}
         {nextItem && (

@@ -98,7 +98,12 @@ async function migrateOrderItemsFromStruct() {
               name: itemName,
               category: 'an_choi', // Always "Ăn chơi" category
               parentMenuItemId: null, // No parent for Lai rai items
-              imageUrl: PLACEHOLDER_IMAGES.an_choi
+              imageUrl: PLACEHOLDER_IMAGES.an_choi,
+              // Kitchen timing fields
+              speed: 'medium', // fast, medium, slow
+              priority: 1, // 1-4 (1 = highest priority)
+              kitchenType: 'cook', // cook, grill
+              estimatedTime: 2 // minutes
             });
             
             console.log(`    ✅ ${itemName} (${price}₫) -> Lai rai (standalone)`);
@@ -112,11 +117,47 @@ async function migrateOrderItemsFromStruct() {
             continue;
           }
           
+          // Determine kitchen timing based on item name and category
+          let speed = 'medium';
+          let priority = 1;
+          let kitchenType = 'cook';
+          let estimatedTime = 2;
+
+          // Logic to set timing based on item characteristics
+          if (itemName.toLowerCase().includes('nướng') || itemName.toLowerCase().includes('grill')) {
+            kitchenType = 'grill';
+            estimatedTime = 3; // Grill takes longer
+          }
+          
+          if (itemName.toLowerCase().includes('nhanh') || itemName.toLowerCase().includes('fast')) {
+            speed = 'fast';
+            estimatedTime = 1;
+          } else if (itemName.toLowerCase().includes('chậm') || itemName.toLowerCase().includes('slow')) {
+            speed = 'slow';
+            estimatedTime = 4;
+          }
+
+          // Set priority based on category
+          if (currentCategory === 'oc') {
+            priority = 1; // Highest priority for ốc
+          } else if (currentCategory === 'an_no') {
+            priority = 2;
+          } else if (currentCategory === 'an_choi') {
+            priority = 3;
+          } else if (currentCategory === 'giai_khat') {
+            priority = 4; // Lowest priority for drinks
+          }
+
           orderItems.push({
             name: itemName,
             category: currentCategory,
             parentMenuItemId: menuItems[currentParent],
-            imageUrl: PLACEHOLDER_IMAGES[currentCategory] || PLACEHOLDER_IMAGES.oc
+            imageUrl: PLACEHOLDER_IMAGES[currentCategory] || PLACEHOLDER_IMAGES.oc,
+            // Kitchen timing fields
+            speed: speed,
+            priority: priority,
+            kitchenType: kitchenType,
+            estimatedTime: estimatedTime
           });
           
           console.log(`    ✅ ${itemName} (${price}₫) -> ${currentParent}`);

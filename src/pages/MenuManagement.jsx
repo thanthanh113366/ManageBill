@@ -49,7 +49,22 @@ const orderItemSchema = yup.object({
   name: yup.string().required('Tên món là bắt buộc'),
   category: yup.string().required('Danh mục là bắt buộc'),
   parentMenuItemId: yup.string().required('Món cha là bắt buộc'),
-  imageUrl: yup.string().url('URL hình ảnh không hợp lệ')
+  imageUrl: yup.string().url('URL hình ảnh không hợp lệ'),
+  // Kitchen timing fields
+  estimatedTime: yup.number()
+    .required('Thời gian dự kiến là bắt buộc')
+    .min(1, 'Thời gian phải lớn hơn 0 phút')
+    .max(60, 'Thời gian không được vượt quá 60 phút'),
+  priority: yup.number()
+    .required('Độ ưu tiên là bắt buộc')
+    .min(1, 'Độ ưu tiên phải từ 1-4')
+    .max(4, 'Độ ưu tiên phải từ 1-4'),
+  speed: yup.string()
+    .required('Tốc độ là bắt buộc')
+    .oneOf(['fast', 'medium', 'slow'], 'Tốc độ phải là fast, medium hoặc slow'),
+  kitchenType: yup.string()
+    .required('Loại bếp là bắt buộc')
+    .oneOf(['cook', 'grill'], 'Loại bếp phải là cook hoặc grill')
 });
 
 // Validation schema for tables
@@ -109,6 +124,11 @@ const MenuManagement = () => {
         orderItemForm.setValue('category', item.category || 'oc');
         orderItemForm.setValue('parentMenuItemId', item.parentMenuItemId);
         orderItemForm.setValue('imageUrl', item.imageUrl || '');
+        // Kitchen timing fields
+        orderItemForm.setValue('estimatedTime', item.estimatedTime || 2);
+        orderItemForm.setValue('priority', item.priority || 1);
+        orderItemForm.setValue('speed', item.speed || 'medium');
+        orderItemForm.setValue('kitchenType', item.kitchenType || 'cook');
       } else {
         tableForm.setValue('number', item.number);
         tableForm.setValue('seats', item.seats);
@@ -810,6 +830,81 @@ const MenuManagement = () => {
                     {orderItemForm.formState.errors.imageUrl && (
                       <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.imageUrl.message}</p>
                     )}
+                  </div>
+
+                  {/* Kitchen Timing Fields */}
+                  <div className="border-t pt-4">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">🍳 Thông tin bếp</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Thời gian dự kiến (phút) *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="60"
+                          {...orderItemForm.register('estimatedTime')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          placeholder="2"
+                        />
+                        {orderItemForm.formState.errors.estimatedTime && (
+                          <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.estimatedTime.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Độ ưu tiên *
+                        </label>
+                        <select
+                          {...orderItemForm.register('priority')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                          <option value={1}>1 - Cao nhất (Ốc)</option>
+                          <option value={2}>2 - Cao (Ăn no)</option>
+                          <option value={3}>3 - Trung bình (Ăn chơi)</option>
+                          <option value={4}>4 - Thấp (Giải khát)</option>
+                        </select>
+                        {orderItemForm.formState.errors.priority && (
+                          <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.priority.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Tốc độ *
+                        </label>
+                        <select
+                          {...orderItemForm.register('speed')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                          <option value="fast">⚡ Nhanh (1-2 phút)</option>
+                          <option value="medium">⏱️ Vừa (2-4 phút)</option>
+                          <option value="slow">🐌 Chậm (4+ phút)</option>
+                        </select>
+                        {orderItemForm.formState.errors.speed && (
+                          <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.speed.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Loại bếp *
+                        </label>
+                        <select
+                          {...orderItemForm.register('kitchenType')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                          <option value="cook">👨‍🍳 Nấu (Xào, Hấp, Sốt)</option>
+                          <option value="grill">🔥 Nướng (Grill, BBQ)</option>
+                        </select>
+                        {orderItemForm.formState.errors.kitchenType && (
+                          <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.kitchenType.message}</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex space-x-3 pt-4">

@@ -14,6 +14,10 @@
 - Răng mực sốt trứng muối: 59k
 - Răng mực xào bơ bắp: 59k
 
+## MENU_ITEM: Ốc Len
+- Ốc len xào dừa: 59k
+- Ốc len xào cà ri: 59k
+
 ## MENU_ITEM: Ốc Hương
 - Ốc hương hấp Thái: 69k
 - Ốc hương hấp sả: 69k

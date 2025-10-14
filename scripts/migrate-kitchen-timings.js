@@ -47,19 +47,26 @@ async function migrateKitchenTimings() {
       try {
         const orderItem = doc.data();
         
-        // Create menuItemTiming với giá trị mặc định
+        // Lấy thông tin timing từ orderItem (nếu có) hoặc dùng giá trị mặc định
+        const speed = orderItem.speed || "medium";
+        const kitchenType = orderItem.kitchenType || "cook";
+        const estimatedTime = orderItem.estimatedTime || 2;
+        const priority = orderItem.priority || 1;
+        
+        // Create menuItemTiming với thông tin từ orderItem
         await addDoc(collection(db, 'menuItemTimings'), {
           menuItemId: orderItem.parentMenuItemId || doc.id, // Link đến menuItem gốc
           orderItemId: doc.id,  // ID của orderItem
-          speed: "medium",      // Mặc định vừa
-          kitchenType: "cook",  // Tất cả món = nấu
-          estimatedTime: 2,     // 2 phút
-          priority: 1,          // Tất cả món = priority cao
+          speed: speed,         // Từ orderItem
+          kitchenType: kitchenType,  // Từ orderItem
+          estimatedTime: estimatedTime, // Từ orderItem
+          priority: priority,   // Từ orderItem
+          name: orderItem.name, // Thêm tên món để dễ debug
           createdAt: new Date()
         });
         
         successCount++;
-        console.log(`✅ Đã tạo timing cho: ${orderItem.name}`);
+        console.log(`✅ Đã tạo timing cho: ${orderItem.name} (${speed}, ${kitchenType}, ${estimatedTime}p, priority: ${priority})`);
       } catch (error) {
         errorCount++;
         console.error(`❌ Lỗi tạo timing cho ${doc.id}:`, error.message);

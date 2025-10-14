@@ -9,7 +9,9 @@
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "migrate:categories": "node scripts/migrate-categories-simple.js",
+    "migrate:orderitems": "node scripts/migrate-orderitems.js",
     "migrate:kitchen": "node scripts/migrate-kitchen-timings.js",
+    "update:orderitems": "node scripts/update-orderitems-timing.js",
     "deploy:setup": "node scripts/deploy-setup.js",
     "deploy:check": "npm run build && npm run preview",
     "setup:check": "node scripts/deploy-setup.js"

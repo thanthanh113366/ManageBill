@@ -16,7 +16,7 @@ export const calculateScore = (item, currentTime) => {
   const waitingTime = (currentTime - item.createdAt) / 1000 / 60;
   
   // Các hệ số - tăng weight cho thời gian chờ
-  const waitingWeight = 50;    // Tăng từ 10 lên 50 - món chờ lâu = điểm cao hơn nhiều
+  const waitingWeight = 10;    // Tăng từ 10 lên 50 - món chờ lâu = điểm cao hơn nhiều
   const billOrderWeight = 10;  // Tăng từ 5 lên 10 - bill đặt trước = điểm cao hơn
   const quantityWeight = 2;    // Số lượng nhiều = điểm cao
   const priorityWeight = 50;   // Priority cao = điểm cao

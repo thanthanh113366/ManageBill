@@ -1,6 +1,7 @@
 /**
  * Kitchen Optimization Utilities
  * Thuật toán tối ưu hóa thứ tự làm món cho bếp
+ * Sử dụng speed (fast/medium/slow) để tính thời gian dự kiến
  */
 
 /**
@@ -16,7 +17,7 @@ export const calculateScore = (item, currentTime) => {
   const waitingTime = (currentTime - item.createdAt) / 1000 / 60;
   
   // Các hệ số - tăng weight cho thời gian chờ
-  const waitingWeight = 10;    // Tăng từ 10 lên 50 - món chờ lâu = điểm cao hơn nhiều
+  const waitingWeight = 50;    // Tăng từ 10 lên 50 - món chờ lâu = điểm cao hơn nhiều
   const billOrderWeight = 10;  // Tăng từ 5 lên 10 - bill đặt trước = điểm cao hơn
   const quantityWeight = 2;    // Số lượng nhiều = điểm cao
   const priorityWeight = 50;   // Priority cao = điểm cao
@@ -35,17 +36,24 @@ export const calculateScore = (item, currentTime) => {
 };
 
 /**
- * Tính thời gian dự kiến hoàn thành
+ * Tính thời gian dự kiến hoàn thành dựa trên speed
  * @param {Object} item - Món ăn
  * @param {Object} timing - Thông tin timing của món
  * @returns {number} - Thời gian dự kiến (phút)
  */
 export const calculateEstimatedTime = (item, timing) => {
-  const baseTime = timing?.estimatedTime || 2; // Mặc định 2 phút
   const quantity = item.quantity || 1;
   
+  // Thời gian cơ bản dựa trên speed
+  const speedTiming = {
+    'fast': 2,     // Nhanh: 2 phút
+    'medium': 5,   // Vừa: 5 phút
+    'slow': 10     // Chậm: 10 phút
+  };
+  
+  const baseTime = speedTiming[timing?.speed] || speedTiming['medium']; // Mặc định vừa (5p)
+  
   // Thời gian làm = thời gian cơ bản * số lượng
-  // Có thể điều chỉnh công thức này sau
   return baseTime * quantity;
 };
 
@@ -101,13 +109,20 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
             timing = {
               speed: orderItem.speed || 'medium',
               kitchenType: orderItem.kitchenType || 'cook',
-              estimatedTime: orderItem.estimatedTime || 2,
               priority: orderItem.priority || 1,
               name: orderItem.name
             };
           } else {
             // Fallback về menuItemTimings
-            timing = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
+            const fallbackTiming = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
+            if (fallbackTiming) {
+              timing = {
+                speed: fallbackTiming.speed || 'medium',
+                kitchenType: fallbackTiming.kitchenType || 'cook',
+                priority: fallbackTiming.priority || 1,
+                name: fallbackTiming.name
+              };
+            }
           }
           const quantity = item.quantity || 1;
           const completedCount = item.completedCount || 0;

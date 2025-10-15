@@ -219,7 +219,11 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
       }
     });
   
-  // Sắp xếp: món chưa xong lên đầu, món đã xong xuống cuối
+  // Sắp xếp theo thứ tự ưu tiên:
+  // 1. Món chưa xong lên đầu
+  // 2. Score cao hơn (ưu tiên theo thời gian chờ, priority)
+  // 3. Món nhanh hơn (thời gian ngắn hơn)
+  // 4. Bill đặt trước (FIFO)
   return allItems.sort((a, b) => {
     // Món chưa xong (cooking/pending) lên đầu
     const aIsCompleted = a.isCompleted || a.kitchenStatus === 'ready';
@@ -236,7 +240,13 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
       return b.score - a.score;
     }
     
-    // Nếu score gần nhau, sắp xếp theo thời gian tạo bill (cũ hơn lên đầu)
+    // Nếu score gần nhau, ưu tiên món nhanh hơn (thời gian ngắn hơn)
+    const timeDiff = Math.abs(a.estimatedTime - b.estimatedTime);
+    if (timeDiff > 1) { // Nếu chênh lệch thời gian > 1 phút
+      return a.estimatedTime - b.estimatedTime; // Món nhanh hơn lên đầu
+    }
+    
+    // Nếu thời gian gần nhau, sắp xếp theo thời gian tạo bill (cũ hơn lên đầu)
     const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt);
     const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt);
     return aTime - bTime;

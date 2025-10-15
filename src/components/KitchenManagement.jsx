@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, Clock, CheckCircle, Play, Pause, Filter, Trash2 } from 'lucide-react';
 import { useKitchenOrders } from '../hooks/useKitchenOrders';
 import { formatTime } from '../utils/kitchenOptimizer';
 
 const KitchenManagement = ({ onClose, selectedDate }) => {
   const [selectedTable, setSelectedTable] = useState(null);
+  const [selectedKitchenType, setSelectedKitchenType] = useState('cook'); // 'cook' | 'grill'
   const {
     kitchenQueue,
     stats,
@@ -19,6 +20,19 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     deleteAllMenuItemTimings,
     clearError
   } = useKitchenOrders(selectedTable, selectedDate);
+
+  // Filter queue by kitchen type tab
+  const queueByKitchenType = useMemo(() => {
+    return kitchenQueue.filter(item => {
+      const type = item?.timing?.kitchenType || item?.kitchenType || 'cook';
+      return type === selectedKitchenType;
+    });
+  }, [kitchenQueue, selectedKitchenType]);
+
+  // Next item for current tab
+  const nextItemByKitchenType = useMemo(() => {
+    return queueByKitchenType.find(i => i.kitchenStatus === 'pending') || queueByKitchenType[0] || null;
+  }, [queueByKitchenType]);
 
   const handleStartCooking = async (item) => {
     await startCooking(item.billId, item.orderItemId || item.menuItemId);
@@ -225,13 +239,37 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
         {/* Kitchen Queue */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-6">
-            {kitchenQueue.length === 0 ? (
+            {/* Tabs for kitchen type */}
+            <div className="mb-4">
+              <div className="inline-flex bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setSelectedKitchenType('cook')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${selectedKitchenType === 'cook' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  👨‍🍳 Món nấu
+                  <span className="ml-2 text-xs text-gray-500">
+                    ({kitchenQueue.filter(i => (i?.timing?.kitchenType || i?.kitchenType || 'cook') === 'cook').length})
+                  </span>
+                </button>
+                <button
+                  onClick={() => setSelectedKitchenType('grill')}
+                  className={`ml-1 px-4 py-2 rounded-md text-sm font-medium ${selectedKitchenType === 'grill' ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  🔥 Món nướng
+                  <span className="ml-2 text-xs text-gray-500">
+                    ({kitchenQueue.filter(i => (i?.timing?.kitchenType || i?.kitchenType || 'cook') === 'grill').length})
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {queueByKitchenType.length === 0 ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🍽️</span>
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Không có món nào</h3>
-                <p className="text-gray-500">Hiện tại không có món nào cần làm</p>
+                <p className="text-gray-500">Hiện tại không có món nào cần làm cho tab này</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -239,7 +277,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
                 🔥 Món cần làm (theo thứ tự ưu tiên)
               </h3>
               
-                {kitchenQueue.map((item, index) => (
+                {queueByKitchenType.map((item, index) => (
                 <div
                   key={`${item.billId}-${item.orderItemId || item.menuItemId}-${item.batchOrder || index}`}
                   className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
@@ -315,7 +353,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
 
 
         {/* Next Item Highlight */}
-        {nextItem && (
+        {nextItemByKitchenType && (
           <div className="p-6 border-t bg-orange-50">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
@@ -324,7 +362,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
               <div>
                 <h4 className="font-medium text-gray-900">Món tiếp theo cần làm:</h4>
                 <p className="text-gray-600">
-                  Bàn {nextItem.tableNumber} - {nextItem.name} x{nextItem.quantity}
+                  Bàn {nextItemByKitchenType.tableNumber} - {nextItemByKitchenType.name} x{nextItemByKitchenType.quantity}
                 </p>
               </div>
             </div>

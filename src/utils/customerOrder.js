@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 /**
@@ -19,6 +19,104 @@ export const testFirestoreConnection = async () => {
   } catch (error) {
     console.error('❌ Firestore connection test failed:', error);
     return false;
+  }
+};
+
+/**
+ * ⚠️ CRITICAL FUNCTION - RỦI RO TRUNG BÌNH ⚠️
+ * 
+ * RỦIRO:
+ * - Tạo duplicate menuItemTimings nếu không check existing
+ * - Lỗi Firestore có thể làm fail toàn bộ order process
+ * - Performance impact nếu có nhiều items
+ * 
+ * LOGIC: Tự động tạo menuItemTimings cho orderItems chưa có
+ * SAFETY: Check existing trước khi tạo mới
+ */
+export const createMenuItemTimingsForNewItems = async (items) => {
+  try {
+    console.log('🕒 Creating menuItemTimings for new items...');
+    console.log('📦 Items to process:', items);
+    
+    let createdCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+    
+    for (const item of items) {
+      if (item.orderItemId) {
+        try {
+          console.log(`🔍 Processing orderItemId: ${item.orderItemId}`);
+          
+          // ✅ SAFETY CHECK: Kiểm tra menuItemTiming đã tồn tại chưa
+          const existingTimingQuery = query(
+            collection(db, 'menuItemTimings'),
+            where('orderItemId', '==', item.orderItemId)
+          );
+          const existingTiming = await getDocs(existingTimingQuery);
+          
+          if (!existingTiming.empty) {
+            console.log(`⏭️  MenuItemTiming already exists for orderItemId: ${item.orderItemId}`);
+            skippedCount++;
+            continue;
+          }
+          
+          // ✅ Lấy thông tin orderItem từ database
+          console.log(`📋 Fetching orderItem data for: ${item.orderItemId}`);
+          const orderItemDoc = await getDoc(doc(db, 'orderItems', item.orderItemId));
+          
+          if (!orderItemDoc.exists()) {
+            console.warn(`⚠️  OrderItem not found: ${item.orderItemId}`);
+            errorCount++;
+            continue;
+          }
+          
+          const orderItemData = orderItemDoc.data();
+          console.log(`📊 OrderItem data:`, orderItemData);
+          
+          // ✅ Tạo menuItemTiming mới
+          const menuItemTimingData = {
+            menuItemId: orderItemData.parentMenuItemId || item.orderItemId,
+            orderItemId: item.orderItemId,
+            speed: orderItemData.speed || 'medium',
+            kitchenType: orderItemData.kitchenType || 'cook',
+            estimatedTime: orderItemData.estimatedTime || 2,
+            priority: orderItemData.priority || 1,
+            name: orderItemData.name || 'Unknown Item',
+            createdAt: new Date(),
+            autoCreated: true  // Flag để biết được tạo tự động
+          };
+          
+          console.log(`📝 Creating menuItemTiming:`, menuItemTimingData);
+          
+          await addDoc(collection(db, 'menuItemTimings'), menuItemTimingData);
+          
+          console.log(`✅ Created menuItemTiming for: ${orderItemData.name} (${orderItemData.speed || 'medium'}, ${orderItemData.kitchenType || 'cook'})`);
+          createdCount++;
+          
+        } catch (itemError) {
+          console.error(`❌ Error processing orderItemId ${item.orderItemId}:`, itemError);
+          errorCount++;
+        }
+      } else {
+        console.log(`⏭️  Item has no orderItemId, skipping:`, item);
+        skippedCount++;
+      }
+    }
+    
+    console.log(`🎉 MenuItemTimings creation completed:`);
+    console.log(`✅ Created: ${createdCount}`);
+    console.log(`⏭️  Skipped (existing): ${skippedCount}`);
+    console.log(`❌ Errors: ${errorCount}`);
+    
+    return { createdCount, skippedCount, errorCount };
+    
+  } catch (error) {
+    console.error('❌ Error in createMenuItemTimingsForNewItems:', error);
+    console.error('📊 Error details:', error.message);
+    
+    // ⚠️ KHÔNG throw error để không làm fail order process
+    // Chỉ log error và return thông tin
+    return { createdCount: 0, skippedCount: 0, errorCount: 1, error: error.message };
   }
 };
 
@@ -220,7 +318,17 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
 };
 
 /**
+ * ⚠️ CRITICAL FUNCTION - RỦI RO TRUNG BÌNH ⚠️
+ * 
  * Submit order - tạo mới hoặc cộng thêm vào đơn cũ
+ * 
+ * RỦIRO:
+ * - Lỗi tạo menuItemTimings có thể làm chậm order process
+ * - Nếu timing creation fail, order vẫn phải thành công
+ * - Performance impact khi có nhiều items mới
+ * 
+ * LOGIC: Tạo bill trước, sau đó tạo menuItemTimings (non-blocking)
+ * 
  * @param {number|string} tableNumber - Số bàn
  * @param {Array} items - Danh sách món
  * @param {number} totalRevenue - Tổng doanh thu
@@ -233,6 +341,8 @@ export const submitCustomerOrder = async (tableNumber, items, totalRevenue, tota
     
     // Check if table has existing pending bill
     const existingBill = await getActiveBillForTable(tableNumber);
+    
+    let billId;
     
     if (existingBill) {
       console.log('📋 Found existing bill:', existingBill.id);
@@ -247,15 +357,38 @@ export const submitCustomerOrder = async (tableNumber, items, totalRevenue, tota
         totalProfit
       );
       console.log('✅ Added items to existing bill:', existingBill.id);
-      return existingBill.id;
+      billId = existingBill.id;
     } else {
       console.log('🆕 No existing bill found, creating new bill...');
       
       // Create new bill
-      const newBillId = await createCustomerOrder(tableNumber, items, totalRevenue, totalProfit);
-      console.log('✅ Created new bill with ID:', newBillId);
-      return newBillId;
+      billId = await createCustomerOrder(tableNumber, items, totalRevenue, totalProfit);
+      console.log('✅ Created new bill with ID:', billId);
     }
+    
+    // ✅ CRITICAL: Tự động tạo menuItemTimings cho items mới (non-blocking)
+    console.log('🕒 Starting automatic menuItemTimings creation...');
+    try {
+      const timingResult = await createMenuItemTimingsForNewItems(items);
+      console.log('🎉 MenuItemTimings creation result:', timingResult);
+      
+      if (timingResult.createdCount > 0) {
+        console.log(`✅ Successfully created ${timingResult.createdCount} menuItemTimings`);
+      }
+      
+      if (timingResult.errorCount > 0) {
+        console.warn(`⚠️  ${timingResult.errorCount} errors occurred during menuItemTimings creation`);
+      }
+      
+    } catch (timingError) {
+      // ⚠️ IMPORTANT: Timing creation failure KHÔNG được làm fail order
+      console.error('❌ MenuItemTimings creation failed, but order was successful:', timingError);
+      console.error('📊 Timing error details:', timingError.message);
+      console.log('✅ Order process continues normally despite timing creation failure');
+    }
+    
+    return billId;
+    
   } catch (error) {
     console.error('❌ Error in submitCustomerOrder:', error);
     throw error;

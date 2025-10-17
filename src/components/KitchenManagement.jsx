@@ -10,7 +10,6 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     kitchenQueue,
     stats,
     availableTables,
-    nextItem,
     cookingItems,
     loading,
     error,
@@ -29,10 +28,6 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     });
   }, [kitchenQueue, selectedKitchenType]);
 
-  // Next item for current tab
-  const nextItemByKitchenType = useMemo(() => {
-    return queueByKitchenType.find(i => i.kitchenStatus === 'pending') || queueByKitchenType[0] || null;
-  }, [queueByKitchenType]);
 
   const handleStartCooking = async (item) => {
     await startCooking(item.billId, item.orderItemId || item.menuItemId);
@@ -352,22 +347,6 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
         </div>
 
 
-        {/* Next Item Highlight */}
-        {nextItemByKitchenType && (
-          <div className="p-6 border-t bg-orange-50">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-bold">!</span>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">Món tiếp theo cần làm:</h4>
-                <p className="text-gray-600">
-                  Bàn {nextItemByKitchenType.tableNumber} - {nextItemByKitchenType.name} x{nextItemByKitchenType.quantity}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

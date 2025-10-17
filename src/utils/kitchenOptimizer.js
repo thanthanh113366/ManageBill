@@ -59,13 +59,23 @@ export const calculateEstimatedTime = (item, timing) => {
 
 /**
  * Sắp xếp danh sách món theo thứ tự tối ưu
+ * 
+ * TIMING PRIORITY (đã sửa):
+ * 1. menuItemTimings (PRIMARY) - có thể được admin customize
+ * 2. orderItems (FALLBACK) - timing mặc định từ migration
+ * 
  * @param {Array} bills - Danh sách bills
- * @param {Array} menuTimings - Danh sách timing của menu items
- * @param {Array} orderItems - Danh sách order items để lấy tên món
+ * @param {Array} menuTimings - Danh sách timing của menu items (PRIMARY SOURCE)
+ * @param {Array} orderItems - Danh sách order items (FALLBACK SOURCE)
  * @returns {Array} - Danh sách món đã sắp xếp theo ưu tiên
  */
 export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
   const currentTime = new Date();
+  
+  console.log('🧮 calculateKitchenQueue called with:');
+  console.log('📋 Bills:', bills.length);
+  console.log('🕒 MenuTimings:', menuTimings.length);
+  console.log('📦 OrderItems:', orderItems.length);
   
   // Tạo map để lookup timing từ menuItemTimings (fallback)
   const timingMap = new Map();
@@ -74,11 +84,16 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
     timingMap.set(timing.orderItemId, timing);
   });
   
+  console.log('🗺️ TimingMap created with', timingMap.size, 'entries');
+  console.log('🔍 Sample timingMap keys:', Array.from(timingMap.keys()).slice(0, 5));
+  
   // Tạo map để lookup thông tin món từ orderItems (primary source)
   const orderItemsMap = new Map();
   orderItems.forEach(item => {
     orderItemsMap.set(item.id, item);
   });
+  
+  console.log('🗺️ OrderItemsMap created with', orderItemsMap.size, 'entries');
   
   // Flatten tất cả items từ bills và thêm thông tin cần thiết
   const allItems = bills
@@ -102,28 +117,42 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
             orderItem = Array.from(orderItemsMap.values()).find(oi => oi.parentMenuItemId === item.menuItemId);
           }
           
-          // Tạo timing object từ orderItem (primary) hoặc menuItemTimings (fallback)
+          // ✅ FIXED: Ưu tiên menuItemTimings (có thể được admin customize) trước orderItems
           let timing = null;
-          if (orderItem) {
-            // Ưu tiên lấy từ orderItem
+          let timingSource = 'none';
+          
+          // 1. PRIMARY: Tìm trong menuItemTimings TRƯỚC (có thể được admin customize)
+          const menuTiming = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
+          if (menuTiming) {
+            timing = {
+              speed: menuTiming.speed || 'medium',
+              kitchenType: menuTiming.kitchenType || 'cook',
+              priority: menuTiming.priority || 1,
+              name: menuTiming.name
+            };
+            timingSource = 'menuItemTimings';
+          }
+          
+          // 2. FALLBACK: Nếu không có menuTiming, dùng orderItem
+          if (!timing && orderItem) {
             timing = {
               speed: orderItem.speed || 'medium',
               kitchenType: orderItem.kitchenType || 'cook',
               priority: orderItem.priority || 1,
               name: orderItem.name
             };
-          } else {
-            // Fallback về menuItemTimings
-            const fallbackTiming = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
-            if (fallbackTiming) {
-              timing = {
-                speed: fallbackTiming.speed || 'medium',
-                kitchenType: fallbackTiming.kitchenType || 'cook',
-                priority: fallbackTiming.priority || 1,
-                name: fallbackTiming.name
-              };
-            }
+            timingSource = 'orderItem';
           }
+          
+          // Debug log cho timing lookup
+          console.log(`🔍 Timing lookup for item:`, {
+            orderItemId: item.orderItemId,
+            menuItemId: item.menuItemId,
+            orderItemFound: !!orderItem,
+            timingFound: !!timing,
+            timingSource: timingSource,
+            timing: timing
+          });
           const quantity = item.quantity || 1;
           const completedCount = item.completedCount || 0;
           

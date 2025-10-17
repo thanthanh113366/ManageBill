@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { toast } from 'react-toastify';
 import { Plus, Minus, ShoppingCart } from 'lucide-react';
-import { submitCustomerOrder } from '../utils/customerOrder';
+import { submitCustomerOrder, testFirestoreConnection } from '../utils/customerOrder';
 
 const CATEGORIES = [
   { value: 'oc', label: 'Ốc' },
@@ -59,17 +59,28 @@ const CustomerOrder = () => {
 
   // Calculate summary
   const summary = useMemo(() => {
+    console.log('🧮 Calculating summary...');
+    console.log('📊 Current quantities:', quantities);
+    console.log('📋 Available orderItems:', orderItems.length);
+    console.log('🍽️ Available menuItems:', menuItems.length);
+    
     let totalRevenue = 0;
     let totalProfit = 0;
     let totalItems = 0;
     const items = [];
 
     Object.entries(quantities).forEach(([orderItemId, quantity]) => {
+      console.log(`🔍 Processing orderItemId: ${orderItemId}, quantity: ${quantity}`);
+      
       if (quantity > 0) {
         const orderItem = orderItems.find(item => item.id === orderItemId);
+        console.log(`📦 Found orderItem:`, orderItem);
+        
         if (orderItem) {
           // Get price from parent menu item
           const parentMenuItem = menuItems.find(item => item.id === orderItem.parentMenuItemId);
+          console.log(`🍽️ Found parentMenuItem:`, parentMenuItem);
+          
           if (parentMenuItem) {
             const itemRevenue = parentMenuItem.price * quantity;
             const profitPerItem = parentMenuItem.price - parentMenuItem.costPrice - parentMenuItem.fixedCost - (parentMenuItem.price * parentMenuItem.tax / 100);
@@ -79,19 +90,29 @@ const CustomerOrder = () => {
             totalProfit += itemProfit;
             totalItems += quantity;
 
-            items.push({
+            const processedItem = {
               orderItemId,
               quantity,
               name: orderItem.name,
               price: parentMenuItem.price,
               revenue: itemRevenue
-            });
+            };
+            
+            console.log(`✅ Processed item:`, processedItem);
+            items.push(processedItem);
+          } else {
+            console.warn(`⚠️ Parent menu item not found for orderItem: ${orderItem.name} (parentId: ${orderItem.parentMenuItemId})`);
           }
+        } else {
+          console.warn(`⚠️ OrderItem not found for ID: ${orderItemId}`);
         }
       }
     });
 
-    return { items, totalRevenue, totalProfit, totalItems };
+    const finalSummary = { items, totalRevenue, totalProfit, totalItems };
+    console.log('📊 Final summary:', finalSummary);
+    
+    return finalSummary;
   }, [quantities, orderItems, menuItems]);
 
   const handleQuantityChange = (orderItemId, change) => {
@@ -122,18 +143,34 @@ const CustomerOrder = () => {
         quantity: item.quantity
       }));
 
-      await submitCustomerOrder(
+      console.log('🚀 Submitting order for table:', tableNumber);
+      console.log('📦 Bill items to submit:', billItems);
+      console.log('💰 Total revenue:', summary.totalRevenue);
+      console.log('📈 Total profit:', summary.totalProfit);
+      console.log('🔢 Total items count:', summary.totalItems);
+
+      // Test Firestore connection first
+      console.log('🧪 Testing Firestore connection before submit...');
+      const connectionOk = await testFirestoreConnection();
+      
+      if (!connectionOk) {
+        throw new Error('Firestore connection failed - cannot submit order');
+      }
+
+      const billId = await submitCustomerOrder(
         tableNumber,
         billItems,
         summary.totalRevenue,
         summary.totalProfit
       );
 
+      console.log('✅ Order submitted successfully! Bill ID:', billId);
+
       // Redirect to success page
       navigate(`/order-success/${tableNumber}`);
       
     } catch (error) {
-      console.error('Error submitting order:', error);
+      console.error('❌ Error submitting order:', error);
       toast.error('Có lỗi xảy ra. Vui lòng thử lại!');
     } finally {
       setIsSubmitting(false);

@@ -138,11 +138,22 @@ const PublicBill = () => {
       return;
     }
 
+    // Chờ cả menuItems và orderItems load xong để tránh race condition
+    if (menuItems.length === 0 || orderItems.length === 0) {
+      console.log('⏳ Waiting for menuItems and orderItems to load...');
+      return;
+    }
+
+    console.log('🔄 Processing bill details with', bill.items.length, 'items');
+
     const details = bill.items.map(item => {
       // Handle regular menu items
       if (item.menuItemId) {
         const menuItem = menuItems.find(m => m.id === item.menuItemId);
-        if (!menuItem) return null;
+        if (!menuItem) {
+          console.warn(`MenuItems not found: ${item.menuItemId}`);
+          return null;
+        }
 
         const itemTotal = menuItem.price * item.quantity;
         const taxAmount = itemTotal * (menuItem.tax / 100);
@@ -160,7 +171,21 @@ const PublicBill = () => {
       // Handle order items (new flow)
       else if (item.orderItemId) {
         const orderItem = orderItems.find(o => o.id === item.orderItemId);
-        if (!orderItem) return null;
+        if (!orderItem) {
+          console.warn(`OrderItem not found: ${item.orderItemId}`);
+          // Fallback: hiển thị với thông tin cơ bản thay vì return null
+          return {
+            ...item,
+            orderItem: { name: 'Món không xác định', id: item.orderItemId },
+            parentMenuItem: null,
+            itemTotal: 25000 * item.quantity,
+            taxAmount: 0,
+            finalPrice: 25000 * item.quantity,
+            price: 25000,
+            tax: 0,
+            type: 'orderItem'
+          };
+        }
 
         // Resolve price from parent menu item when available
         const parent = orderItem.parentMenuItemId
@@ -173,6 +198,8 @@ const PublicBill = () => {
         const itemTotal = price * item.quantity;
         const taxAmount = itemTotal * (tax / 100);
         const finalPrice = itemTotal + taxAmount;
+
+        console.log(`✅ Processed orderItem: ${orderItem.name}, price: ${price}, quantity: ${item.quantity}`);
 
         return {
           ...item,
@@ -201,8 +228,9 @@ const PublicBill = () => {
       return null;
     }).filter(Boolean);
 
+    console.log('📋 Final bill details:', details.length, 'items processed');
     setBillDetails(details);
-  }, [bill, menuItems]);
+  }, [bill, menuItems, orderItems]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';

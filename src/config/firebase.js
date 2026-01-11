@@ -34,18 +34,9 @@ Copy env.example to .env.local and fill in your Firebase project details.
 }
 
 // Initialize Firebase
-console.log('🔥 Initializing Firebase with config:', {
-  ...firebaseConfig,
-  apiKey: firebaseConfig.apiKey ? '***' + firebaseConfig.apiKey.slice(-4) : 'MISSING'
-});
-
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore
 export const db = getFirestore(app);
-
-console.log('✅ Firebase initialized successfully');
-console.log('📊 Firestore instance:', db);
-console.log('🏗️ App instance:', app);
 
 export default app; 

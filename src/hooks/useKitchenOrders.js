@@ -52,33 +52,26 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
     return () => unsubscribeBills();
   }, [selectedDate]);
 
-  // Load menu timings (REAL-TIME với debug logs)
+  // Load menu timings (real-time)
   useEffect(() => {
-    console.log('🕒 Setting up menuItemTimings real-time listener...');
     const timingsQuery = query(collection(db, 'menuItemTimings'));
 
     const unsubscribeTimings = onSnapshot(
       timingsQuery,
       (snapshot) => {
-        console.log('🔄 MenuItemTimings snapshot received:', snapshot.size, 'documents');
         const timingsData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
-        console.log('📊 MenuItemTimings data loaded:', timingsData.length, 'items');
-        console.log('🔍 Sample menuItemTimings:', timingsData.slice(0, 3));
         setMenuTimings(timingsData);
       },
       (error) => {
-        console.error('❌ Error loading menu timings:', error);
+        console.error('Error loading menu timings:', error);
         setError('Lỗi tải thông tin timing món ăn');
       }
     );
 
-    return () => {
-      console.log('🔌 Unsubscribing menuItemTimings listener');
-      unsubscribeTimings();
-    };
+    return () => unsubscribeTimings();
   }, []);
 
   // Load order items (chỉ load 1 lần)

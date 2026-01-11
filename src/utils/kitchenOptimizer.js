@@ -72,11 +72,6 @@ export const calculateEstimatedTime = (item, timing) => {
 export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
   const currentTime = new Date();
   
-  console.log('🧮 calculateKitchenQueue called with:');
-  console.log('📋 Bills:', bills.length);
-  console.log('🕒 MenuTimings:', menuTimings.length);
-  console.log('📦 OrderItems:', orderItems.length);
-  
   // Tạo map để lookup timing từ menuItemTimings (fallback)
   const timingMap = new Map();
   menuTimings.forEach(timing => {
@@ -84,16 +79,11 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
     timingMap.set(timing.orderItemId, timing);
   });
   
-  console.log('🗺️ TimingMap created with', timingMap.size, 'entries');
-  console.log('🔍 Sample timingMap keys:', Array.from(timingMap.keys()).slice(0, 5));
-  
   // Tạo map để lookup thông tin món từ orderItems (primary source)
   const orderItemsMap = new Map();
   orderItems.forEach(item => {
     orderItemsMap.set(item.id, item);
   });
-  
-  console.log('🗺️ OrderItemsMap created with', orderItemsMap.size, 'entries');
   
   // Flatten tất cả items từ bills và thêm thông tin cần thiết
   const allItems = bills
@@ -144,15 +134,6 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
             timingSource = 'orderItem';
           }
           
-          // Debug log cho timing lookup
-          console.log(`🔍 Timing lookup for item:`, {
-            orderItemId: item.orderItemId,
-            menuItemId: item.menuItemId,
-            orderItemFound: !!orderItem,
-            timingFound: !!timing,
-            timingSource: timingSource,
-            timing: timing
-          });
           const quantity = item.quantity || 1;
           const completedCount = item.completedCount || 0;
           

@@ -6,18 +6,13 @@ import { db } from '../config/firebase';
  */
 export const testFirestoreConnection = async () => {
   try {
-    console.log('🧪 Testing Firestore connection...');
-    
     // Try to read from a collection
     const testQuery = query(collection(db, 'bills'));
     const snapshot = await getDocs(testQuery);
     
-    console.log('✅ Firestore connection test successful');
-    console.log('📊 Found', snapshot.size, 'documents in bills collection');
-    
     return true;
   } catch (error) {
-    console.error('❌ Firestore connection test failed:', error);
+    console.error('Firestore connection test failed:', error);
     return false;
   }
 };
@@ -35,9 +30,6 @@ export const testFirestoreConnection = async () => {
  */
 export const createMenuItemTimingsForNewItems = async (items) => {
   try {
-    console.log('🕒 Creating menuItemTimings for new items...');
-    console.log('📦 Items to process:', items);
-    
     let createdCount = 0;
     let skippedCount = 0;
     let errorCount = 0;
@@ -45,8 +37,6 @@ export const createMenuItemTimingsForNewItems = async (items) => {
     for (const item of items) {
       if (item.orderItemId) {
         try {
-          console.log(`🔍 Processing orderItemId: ${item.orderItemId}`);
-          
           // ✅ SAFETY CHECK: Kiểm tra menuItemTiming đã tồn tại chưa
           const existingTimingQuery = query(
             collection(db, 'menuItemTimings'),
@@ -55,23 +45,20 @@ export const createMenuItemTimingsForNewItems = async (items) => {
           const existingTiming = await getDocs(existingTimingQuery);
           
           if (!existingTiming.empty) {
-            console.log(`⏭️  MenuItemTiming already exists for orderItemId: ${item.orderItemId}`);
             skippedCount++;
             continue;
           }
           
           // ✅ Lấy thông tin orderItem từ database
-          console.log(`📋 Fetching orderItem data for: ${item.orderItemId}`);
           const orderItemDoc = await getDoc(doc(db, 'orderItems', item.orderItemId));
           
           if (!orderItemDoc.exists()) {
-            console.warn(`⚠️  OrderItem not found: ${item.orderItemId}`);
+            console.warn(`OrderItem not found: ${item.orderItemId}`);
             errorCount++;
             continue;
           }
           
           const orderItemData = orderItemDoc.data();
-          console.log(`📊 OrderItem data:`, orderItemData);
           
           // ✅ Tạo menuItemTiming mới
           const menuItemTimingData = {
@@ -86,33 +73,23 @@ export const createMenuItemTimingsForNewItems = async (items) => {
             autoCreated: true  // Flag để biết được tạo tự động
           };
           
-          console.log(`📝 Creating menuItemTiming:`, menuItemTimingData);
-          
           await addDoc(collection(db, 'menuItemTimings'), menuItemTimingData);
           
-          console.log(`✅ Created menuItemTiming for: ${orderItemData.name} (${orderItemData.speed || 'medium'}, ${orderItemData.kitchenType || 'cook'})`);
           createdCount++;
           
         } catch (itemError) {
-          console.error(`❌ Error processing orderItemId ${item.orderItemId}:`, itemError);
+          console.error(`Error processing orderItemId ${item.orderItemId}:`, itemError);
           errorCount++;
         }
       } else {
-        console.log(`⏭️  Item has no orderItemId, skipping:`, item);
         skippedCount++;
       }
     }
     
-    console.log(`🎉 MenuItemTimings creation completed:`);
-    console.log(`✅ Created: ${createdCount}`);
-    console.log(`⏭️  Skipped (existing): ${skippedCount}`);
-    console.log(`❌ Errors: ${errorCount}`);
-    
     return { createdCount, skippedCount, errorCount };
     
   } catch (error) {
-    console.error('❌ Error in createMenuItemTimingsForNewItems:', error);
-    console.error('📊 Error details:', error.message);
+    console.error('Error in createMenuItemTimingsForNewItems:', error);
     
     // ⚠️ KHÔNG throw error để không làm fail order process
     // Chỉ log error và return thông tin
@@ -133,12 +110,8 @@ export const createMenuItemTimingsForNewItems = async (items) => {
  */
 export const getActiveBillForTable = async (tableNumber) => {
   try {
-    console.log('🔍 Searching for active bill for table:', tableNumber);
-    console.log('🔢 Parsed table number:', parseInt(tableNumber));
-    
     // ✅ CRITICAL: Phải filter theo ngày TRƯỚC KHI filter theo bàn
     const today = new Date().toISOString().split('T')[0];
-    console.log('📅 Filtering by today date:', today);
     
     const q = query(
       collection(db, 'bills'),
@@ -147,13 +120,9 @@ export const getActiveBillForTable = async (tableNumber) => {
       where('status', '==', 'pending')               // 3. Chưa thanh toán
     );
     
-    console.log('📊 Executing Firestore query with date filter...');
     const snapshot = await getDocs(q);
     
-    console.log('📋 Query results:', snapshot.size, 'documents found for TODAY');
-    
     if (snapshot.empty) {
-      console.log('✅ No active bills found for table', tableNumber, 'TODAY - Safe to create new bill');
       return null;
     }
     
@@ -162,16 +131,10 @@ export const getActiveBillForTable = async (tableNumber) => {
       ...snapshot.docs[0].data()
     };
     
-    console.log('⚠️  Found existing bill TODAY:', activeBill);
-    console.log('📅 Bill date:', activeBill.date);
-    console.log('🏷️  Bill table:', activeBill.tableNumber);
-    console.log('📊 Bill status:', activeBill.status);
-    
     // Return first pending bill
     return activeBill;
   } catch (error) {
-    console.error('❌ Error getting active bill:', error);
-    console.error('📊 Error details:', error.message);
+    console.error('Error getting active bill:', error);
     throw error;
   }
 };
@@ -200,38 +163,17 @@ export const createCustomerOrder = async (tableNumber, items, totalRevenue, tota
       totalProfit: totalProfit
     };
     
-    console.log('📝 Creating new bill with data:', billData);
-    console.log('📅 Date:', today);
-    console.log('🏷️ Table number (parsed):', parseInt(tableNumber));
-    console.log('📦 Items array:', items);
-    
-    // Test Firestore connection first
-    console.log('🔗 Testing Firestore connection...');
-    console.log('📊 Database instance:', db);
-    console.log('📋 Collection reference:', collection(db, 'bills'));
-    
     try {
-      console.log('⏳ Attempting to add document to Firestore...');
       const docRef = await addDoc(collection(db, 'bills'), billData);
-      
-      console.log('✅ Bill created successfully in Firestore with ID:', docRef.id);
-      console.log('🔗 Document reference:', docRef);
-      console.log('📍 Document path:', docRef.path);
-      
       return docRef.id;
     } catch (firestoreError) {
-      console.error('🔥 Firestore specific error:', firestoreError);
-      console.error('📊 Error code:', firestoreError.code);
-      console.error('📝 Error message:', firestoreError.message);
-      console.error('🔍 Full error object:', firestoreError);
+      console.error('Firestore specific error:', firestoreError);
       
       // Re-throw with more context
       throw new Error(`Firestore write failed: ${firestoreError.message} (Code: ${firestoreError.code})`);
     }
   } catch (error) {
-    console.error('❌ Error creating order in Firestore:', error);
-    console.error('📊 Error details:', error.message);
-    console.error('🔍 Stack trace:', error.stack);
+    console.error('Error creating order in Firestore:', error);
     throw error;
   }
 };
@@ -286,20 +228,11 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
     // ✅ SAFETY CHECK: Đảm bảo bill là của ngày hôm nay
     const today = new Date().toISOString().split('T')[0];
     if (existingBill.date !== today) {
-      throw new Error(`🚨 CRITICAL: Attempting to merge with bill from different date! Bill date: ${existingBill.date}, Today: ${today}`);
+      throw new Error(`CRITICAL: Attempting to merge with bill from different date! Bill date: ${existingBill.date}, Today: ${today}`);
     }
-    
-    console.log('✅ Safety check passed: Bill is from today');
-    console.log('📅 Bill date:', existingBill.date);
-    console.log('📅 Today:', today);
     
     // Merge items
     const mergedItems = mergeItems(existingBill.items, newItems);
-    
-    console.log('🔄 Merging items...');
-    console.log('📦 Existing items:', existingBill.items);
-    console.log('📦 New items:', newItems);  
-    console.log('📦 Merged items:', mergedItems);
     
     // Update bill
     await updateDoc(doc(db, 'bills', billId), {
@@ -309,10 +242,8 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
       updatedAt: serverTimestamp()
     });
     
-    console.log('✅ Bill updated successfully');
   } catch (error) {
-    console.error('❌ Error adding items to bill:', error);
-    console.error('📊 Error details:', error.message);
+    console.error('Error adding items to bill:', error);
     throw error;
   }
 };
@@ -337,17 +268,12 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
  */
 export const submitCustomerOrder = async (tableNumber, items, totalRevenue, totalProfit) => {
   try {
-    console.log('🔍 Checking for existing bill for table:', tableNumber);
-    
     // Check if table has existing pending bill
     const existingBill = await getActiveBillForTable(tableNumber);
     
     let billId;
     
     if (existingBill) {
-      console.log('📋 Found existing bill:', existingBill.id);
-      console.log('📝 Existing bill data:', existingBill);
-      
       // Add to existing bill
       await addItemsToExistingBill(
         existingBill.id,
@@ -356,41 +282,29 @@ export const submitCustomerOrder = async (tableNumber, items, totalRevenue, tota
         totalRevenue,
         totalProfit
       );
-      console.log('✅ Added items to existing bill:', existingBill.id);
       billId = existingBill.id;
     } else {
-      console.log('🆕 No existing bill found, creating new bill...');
-      
       // Create new bill
       billId = await createCustomerOrder(tableNumber, items, totalRevenue, totalProfit);
-      console.log('✅ Created new bill with ID:', billId);
     }
     
     // ✅ CRITICAL: Tự động tạo menuItemTimings cho items mới (non-blocking)
-    console.log('🕒 Starting automatic menuItemTimings creation...');
     try {
       const timingResult = await createMenuItemTimingsForNewItems(items);
-      console.log('🎉 MenuItemTimings creation result:', timingResult);
-      
-      if (timingResult.createdCount > 0) {
-        console.log(`✅ Successfully created ${timingResult.createdCount} menuItemTimings`);
-      }
       
       if (timingResult.errorCount > 0) {
-        console.warn(`⚠️  ${timingResult.errorCount} errors occurred during menuItemTimings creation`);
+        console.warn(`${timingResult.errorCount} errors occurred during menuItemTimings creation`);
       }
       
     } catch (timingError) {
       // ⚠️ IMPORTANT: Timing creation failure KHÔNG được làm fail order
-      console.error('❌ MenuItemTimings creation failed, but order was successful:', timingError);
-      console.error('📊 Timing error details:', timingError.message);
-      console.log('✅ Order process continues normally despite timing creation failure');
+      console.error('MenuItemTimings creation failed, but order was successful:', timingError);
     }
     
     return billId;
     
   } catch (error) {
-    console.error('❌ Error in submitCustomerOrder:', error);
+    console.error('Error in submitCustomerOrder:', error);
     throw error;
   }
 };

@@ -77,7 +77,6 @@ const PublicBill = () => {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log('📊 Bills snapshot:', snapshot.docs.length, 'bills found for today');
       
       // Filter manually để hỗ trợ cả string và number
       const bills = snapshot.docs
@@ -98,20 +97,15 @@ const PublicBill = () => {
                        String(billTableNumber) === String(targetTableNumber);
           
           if (match) {
-            console.log('📋 Matched Bill:', bill.id, 'tableNumber:', billTableNumber, 'status:', bill.status);
           }
           
           return match;
         });
       
-      console.log('🎯 Filtered bills for table', tableNumber, ':', bills.length);
-      
       // Filter chỉ bills chưa thanh toán (hoặc chưa có status field)
       const pendingBills = bills.filter(bill => 
         !bill.status || bill.status === 'pending'
       );
-      
-      console.log('✅ Pending bills:', pendingBills.length);
       
       // Lấy bill mới nhất chưa thanh toán
       const activeBill = pendingBills.sort((a, b) => {
@@ -119,8 +113,6 @@ const PublicBill = () => {
         const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt);
         return timeB - timeA;
       })[0];
-
-      console.log('🎉 Active bill:', activeBill ? activeBill.id : 'null');
       setBill(activeBill || null);
       setLoading(false);
     }, (error) => {
@@ -140,11 +132,8 @@ const PublicBill = () => {
 
     // Chờ cả menuItems và orderItems load xong để tránh race condition
     if (menuItems.length === 0 || orderItems.length === 0) {
-      console.log('⏳ Waiting for menuItems and orderItems to load...');
       return;
     }
-
-    console.log('🔄 Processing bill details with', bill.items.length, 'items');
 
     const details = bill.items.map(item => {
       // Handle regular menu items
@@ -199,7 +188,6 @@ const PublicBill = () => {
         const taxAmount = itemTotal * (tax / 100);
         const finalPrice = itemTotal + taxAmount;
 
-        console.log(`✅ Processed orderItem: ${orderItem.name}, price: ${price}, quantity: ${item.quantity}`);
 
         return {
           ...item,
@@ -228,7 +216,6 @@ const PublicBill = () => {
       return null;
     }).filter(Boolean);
 
-    console.log('📋 Final bill details:', details.length, 'items processed');
     setBillDetails(details);
   }, [bill, menuItems, orderItems]);
 

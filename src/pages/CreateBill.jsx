@@ -3,7 +3,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
-import { Plus, Minus, ShoppingCart, Calculator } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Calculator, ExternalLink, FileText } from 'lucide-react';
 
 // Categories for menu items
 const CATEGORIES = [
@@ -21,6 +21,7 @@ const CreateBill = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('oc');
   const [selectedTable, setSelectedTable] = useState('');
+  const [showCustomerOrderModal, setShowCustomerOrderModal] = useState(false);
 
   // Tính toán tổng bill
   const billSummary = useMemo(() => {
@@ -144,6 +145,11 @@ const CreateBill = () => {
     return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
   };
 
+  const handleOpenPublicBill = (tableNumber) => {
+    window.open(`/bill/${tableNumber}`, '_blank');
+    setShowCustomerOrderModal(false);
+  };
+
   // Filter menu items by category
   const filteredMenuItems = useMemo(() => {
     if (selectedCategory === 'all') {
@@ -185,7 +191,18 @@ const CreateBill = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Tạo đơn hàng</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Tạo đơn hàng</h1>
+          
+          <button
+            onClick={() => setShowCustomerOrderModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            title="Mở trang khách hàng"
+          >
+            <ExternalLink size={16} />
+            <span>Trang khách</span>
+          </button>
+        </div>
         
         {/* Table Selection */}
         <div className="mb-6">
@@ -336,6 +353,75 @@ const CreateBill = () => {
           </div>
         )}
       </div>
+
+      {/* Customer Order Modal */}
+      {showCustomerOrderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Mở trang khách hàng
+              </h3>
+              <button
+                onClick={() => setShowCustomerOrderModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <FileText size={20} />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Chọn bàn để mở trang xem hóa đơn cho khách hàng:
+              </p>
+              
+              {/* All Tables */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-900 mb-3">
+                  Danh sách bàn:
+                </h4>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {tables && tables.length > 0 ? tables.map((table) => (
+                    <button
+                      key={table.id}
+                      onClick={() => handleOpenPublicBill(table.number)}
+                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-indigo-300 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            Bàn {table.number}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {table.seats} chỗ ngồi
+                            {table.description && ` • ${table.description}`}
+                          </div>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </button>
+                  )) : (
+                    <p className="text-center text-gray-500 py-8">
+                      Chưa có bàn nào được thiết lập
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {(!tables || tables.length === 0) && (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">
+                    Không có bàn nào để hiển thị
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useMemo, useEffect } from 'react';
+import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
@@ -22,6 +22,8 @@ const CreateBill = () => {
   const [selectedCategory, setSelectedCategory] = useState('oc');
   const [selectedTable, setSelectedTable] = useState('');
   const [showCustomerOrderModal, setShowCustomerOrderModal] = useState(false);
+  const [bills, setBills] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Tính toán tổng bill
   const billSummary = useMemo(() => {
@@ -145,9 +147,59 @@ const CreateBill = () => {
     return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
   };
 
+  // Load bills from Firestore
+  useEffect(() => {
+    const q = query(
+      collection(db, 'bills'),
+      where('date', '==', selectedDate),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const billsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Sắp xếp: đơn chưa thanh toán lên đầu, giữ nguyên logic thời gian trong mỗi nhóm
+      const sortedBills = billsData.sort((a, b) => {
+        // Kiểm tra trạng thái thanh toán
+        const aIsPending = !a.status || a.status === 'pending';
+        const bIsPending = !b.status || b.status === 'pending';
+        
+        // Nếu một đơn pending và một đơn đã thanh toán, đưa pending lên đầu
+        if (aIsPending && !bIsPending) return -1;
+        if (!aIsPending && bIsPending) return 1;
+        
+        // Nếu cùng trạng thái, sắp xếp theo thời gian (mới nhất lên đầu)
+        const timeA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return timeB - timeA;
+      });
+      
+      setBills(sortedBills);
+    }, (error) => {
+      console.error('Error loading bills:', error);
+    });
+
+    return () => unsubscribe();
+  }, [selectedDate]);
+
   const handleOpenPublicBill = (tableNumber) => {
     window.open(`/bill/${tableNumber}`, '_blank');
     setShowCustomerOrderModal(false);
+  };
+
+  const getActiveTables = () => {
+    // Get tables that have active bills for today
+    const activeTables = new Set();
+    bills.filter(bill => bill.status === 'pending').forEach(bill => {
+      if (bill.tableNumber) {
+        activeTables.add(bill.tableNumber);
+      }
+    });
+    
+    return Array.from(activeTables).sort((a, b) => a - b);
   };
 
   // Filter menu items by category
@@ -377,17 +429,47 @@ const CreateBill = () => {
                 Chọn bàn để mở trang xem hóa đơn cho khách hàng:
               </p>
               
+              {/* Active Tables */}
+              {getActiveTables().length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">
+                    Bàn có đơn hàng chưa thanh toán:
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {getActiveTables().map((tableNumber) => (
+                      <button
+                        key={tableNumber}
+                        onClick={() => handleOpenPublicBill(tableNumber)}
+                        className="w-full text-left p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 hover:border-green-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              Bàn {tableNumber}
+                            </div>
+                            <div className="text-sm text-green-600">
+                              ● Có đơn hàng đang chờ
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {/* All Tables */}
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-3">
-                  Danh sách bàn:
+                  Tất cả bàn:
                 </h4>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+                <div className="space-y-2 max-h-60 overflow-y-auto">
                   {tables && tables.length > 0 ? tables.map((table) => (
                     <button
                       key={table.id}
                       onClick={() => handleOpenPublicBill(table.number)}
-                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-indigo-300 transition-colors"
+                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -410,7 +492,7 @@ const CreateBill = () => {
                 </div>
               </div>
               
-              {(!tables || tables.length === 0) && (
+              {getActiveTables().length === 0 && (!tables || tables.length === 0) && (
                 <div className="text-center py-8">
                   <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">

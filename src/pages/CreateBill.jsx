@@ -4,6 +4,7 @@ import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import { Plus, Minus, ShoppingCart, Calculator, ExternalLink, FileText } from 'lucide-react';
+import { VoiceOrderButton } from '../components/VoiceOrderButton';
 
 // Categories for menu items
 const CATEGORIES = [
@@ -190,6 +191,18 @@ const CreateBill = () => {
     setShowCustomerOrderModal(false);
   };
 
+  const handleVoiceItemsMatched = (matchedItems) => {
+    // Ghi đè (không cộng dồn) - theo yêu cầu
+    setQuantities(prev => {
+      const newQuantities = { ...prev };
+      matchedItems.forEach(item => {
+        // Ghi đè số lượng mới (không cộng với số cũ)
+        newQuantities[item.menuItemId] = item.quantity;
+      });
+      return newQuantities;
+    });
+  };
+
   const getActiveTables = () => {
     // Get tables that have active bills for today
     const activeTables = new Set();
@@ -261,19 +274,28 @@ const CreateBill = () => {
           <label htmlFor="table" className="block text-sm font-medium text-gray-700 mb-2">
             Chọn số bàn *
           </label>
-          <select
-            id="table"
-            value={selectedTable}
-            onChange={(e) => setSelectedTable(e.target.value)}
-            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-          >
-            <option value="">-- Chọn bàn --</option>
-            {tables && tables.map((table) => (
-              <option key={table.id} value={table.number}>
-                Bàn {table.number} - {table.seats} chỗ
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-3">
+            <select
+              id="table"
+              value={selectedTable}
+              onChange={(e) => setSelectedTable(e.target.value)}
+              className="flex-1 max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">-- Chọn bàn --</option>
+              {tables && tables.map((table) => (
+                <option key={table.id} value={table.number}>
+                  Bàn {table.number} - {table.seats} chỗ
+                </option>
+              ))}
+            </select>
+            
+            {/* Voice Order Button - Cạnh phần chọn bàn */}
+            <VoiceOrderButton 
+              menuItems={menuItems}
+              currentCategory={selectedCategory}
+              onItemsMatched={handleVoiceItemsMatched}
+            />
+          </div>
         </div>
         
         {/* Category Tabs */}

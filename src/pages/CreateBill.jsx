@@ -3,8 +3,9 @@ import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot 
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
-import { Plus, Minus, ShoppingCart, Calculator, ExternalLink, FileText } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Calculator, ExternalLink } from 'lucide-react';
 import { VoiceOrderButton } from '../components/VoiceOrderButton';
+import CustomItemForm from '../components/CustomItemForm';
 
 // Categories for menu items
 const CATEGORIES = [
@@ -25,6 +26,9 @@ const CreateBill = () => {
   const [showCustomerOrderModal, setShowCustomerOrderModal] = useState(false);
   const [bills, setBills] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Custom items (món khác) cho CreateBill
+  const [customItems, setCustomItems] = useState([]);
 
   // Tính toán tổng bill
   const billSummary = useMemo(() => {
@@ -67,6 +71,22 @@ const CreateBill = () => {
     };
   }, [quantities, menuItems]);
 
+  // Tổng tiền cho custom items
+  const customTotals = useMemo(() => {
+    let totalRevenue = 0;
+    let totalProfit = 0;
+
+    customItems.forEach(item => {
+      totalRevenue += item.customAmount;
+      totalProfit += item.customAmount;
+    });
+
+    return { totalRevenue, totalProfit };
+  }, [customItems]);
+
+  const totalRevenueWithCustom = billSummary.totalRevenue + customTotals.totalRevenue;
+  const totalProfitWithCustom = billSummary.totalProfit + customTotals.totalProfit;
+
   const handleQuantityChange = (menuItemId, change) => {
     setQuantities(prev => {
       const currentQuantity = prev[menuItemId] || 0;
@@ -101,7 +121,7 @@ const CreateBill = () => {
   };
 
   const handleSubmit = async () => {
-    if (billSummary.totalItems === 0) {
+    if (billSummary.totalItems === 0 && customItems.length === 0) {
       toast.error('Vui lòng chọn ít nhất một món');
       return;
     }
@@ -117,17 +137,24 @@ const CreateBill = () => {
       const today = new Date();
       const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
+      const menuBillItems = billSummary.items.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity
+      }));
+
+      const customBillItems = customItems.map(item => ({
+        customDescription: item.customDescription,
+        customAmount: item.customAmount
+      }));
+
       const billData = {
         createdAt: serverTimestamp(),
         date: dateString,
         tableNumber: parseInt(selectedTable), // Convert to number
         status: 'pending', // pending, paid
-        items: billSummary.items.map(item => ({
-          menuItemId: item.menuItemId,
-          quantity: item.quantity
-        })),
-        totalRevenue: billSummary.totalRevenue,
-        totalProfit: billSummary.totalProfit
+        items: [...menuBillItems, ...customBillItems],
+        totalRevenue: totalRevenueWithCustom,
+        totalProfit: totalProfitWithCustom
       };
 
       await addDoc(collection(db, 'bills'), billData);
@@ -135,6 +162,7 @@ const CreateBill = () => {
       // Reset form
       setQuantities({});
       setSelectedTable('');
+      setCustomItems([]);
       toast.success('Tạo đơn hàng thành công!');
     } catch (error) {
       console.error('Error creating bill:', error);
@@ -327,50 +355,63 @@ const CreateBill = () => {
         </div>
         
         {/* Menu items */}
-        <div className="space-y-4 mb-8">
+        <div className="space-y-4 mb-6">
           {filteredMenuItems.map((item) => {
-          const quantity = quantities[item.id] || 0;
-          
-          return (
-            <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                <p className="text-indigo-600 font-medium">
-                  {formatCurrency(item.price)}
-                </p>
-              </div>
-              
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => handleQuantityChange(item.id, -1)}
-                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                  disabled={quantity === 0}
-                >
-                  <Minus size={16} />
-                </button>
+            const quantity = quantities[item.id] || 0;
+            
+            return (
+              <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">{item.name}</h3>
+                  <p className="text-indigo-600 font-medium">
+                    {formatCurrency(item.price)}
+                  </p>
+                </div>
                 
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantityDirectly(item.id, e.target.value)}
-                  className="w-16 text-center border rounded-md py-1 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  min="0"
-                />
-                
-                <button
-                  onClick={() => handleQuantityChange(item.id, 1)}
-                  className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center transition-colors"
-                >
-                  <Plus size={16} />
-                </button>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => handleQuantityChange(item.id, -1)}
+                    className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                    disabled={quantity === 0}
+                  >
+                    <Minus size={16} />
+                  </button>
+                  
+                  <input
+                    type="number"
+                    value={quantity}
+                    onChange={(e) => setQuantityDirectly(item.id, e.target.value)}
+                    className="w-16 text-center border rounded-md py-1 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    min="0"
+                  />
+                  
+                  <button
+                    onClick={() => handleQuantityChange(item.id, 1)}
+                    className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center transition-colors"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+
+        {/* Custom items (món khác) */}
+        <CustomItemForm
+          onAdd={({ customDescription, customAmount }) => {
+            const newCustomItem = {
+              id: `custom_${Date.now()}_${Math.random()}`,
+              customDescription,
+              customAmount
+            };
+            setCustomItems(prev => [...prev, newCustomItem]);
+            toast.success('Đã thêm món khác');
+          }}
+        />
 
         {/* Bill Summary */}
-        {billSummary.totalItems > 0 && (
+        {(billSummary.totalItems > 0 || customItems.length > 0) && (
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center mb-4">
               <Calculator className="w-5 h-5 text-indigo-600 mr-2" />
@@ -390,19 +431,35 @@ const CreateBill = () => {
                   </span>
                 </div>
               ))}
+
+              {customItems.map(item => (
+                <div key={item.id} className="flex justify-between text-sm">
+                  <span className="text-gray-600">
+                    {item.customDescription}
+                  </span>
+                  <span
+                    className={`font-medium ${
+                      item.customAmount >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    {item.customAmount >= 0 ? '+' : ''}
+                    {formatCurrency(item.customAmount)}
+                  </span>
+                </div>
+              ))}
             </div>
             
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between font-semibold text-lg">
                 <span>Tổng cộng:</span>
                 <span className="text-indigo-600">
-                  {formatCurrency(billSummary.totalRevenue)}
+                  {formatCurrency(totalRevenueWithCustom)}
                 </span>
               </div>
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Lợi nhuận dự kiến:</span>
                 <span className="text-green-600 font-medium">
-                  {formatCurrency(billSummary.totalProfit)}
+                  {formatCurrency(totalProfitWithCustom)}
                 </span>
               </div>
             </div>

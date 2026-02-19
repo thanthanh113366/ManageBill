@@ -4,6 +4,7 @@ import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { X, Plus, Minus, Save, Trash2, ShoppingCart, Calculator, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
+import CustomItemForm from './CustomItemForm';
 
 const EditBill = ({ bill, onClose, onUpdated }) => {
   const { menuItems } = useApp();
@@ -11,14 +12,6 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
   const [orderItems, setOrderItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
-  // States for custom item form
-  const [showCustomItemForm, setShowCustomItemForm] = useState(false);
-  const [customItem, setCustomItem] = useState({
-    description: '',
-    amount: '',
-    isValid: false
-  });
 
   // Categories
   const categories = [
@@ -60,12 +53,6 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
     }
   }, [bill, menuItems]);
 
-  // Validate custom item
-  useEffect(() => {
-    const isValid = customItem.description.trim() !== '' && customItem.amount !== '' && !isNaN(parseFloat(customItem.amount));
-    setCustomItem(prev => ({ ...prev, isValid }));
-  }, [customItem.description, customItem.amount]);
-
   // Filter menu items by category
   const filteredMenuItems = menuItems.filter(item => item.category === selectedCategory);
 
@@ -98,23 +85,16 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
     });
   };
 
-  const addCustomItem = () => {
-    if (!customItem.isValid) return;
-
+  const handleAddCustomItem = ({ customDescription, customAmount }) => {
     const newCustomItem = {
-      customDescription: customItem.description.trim(),
-      customAmount: parseFloat(customItem.amount),
+      customDescription,
+      customAmount,
       quantity: 1,
       type: 'custom',
       id: `custom_${Date.now()}_${Math.random()}`
     };
 
     setOrderItems(prev => [...prev, newCustomItem]);
-    
-    // Reset form
-    setCustomItem({ description: '', amount: '', isValid: false });
-    setShowCustomItemForm(false);
-    
     toast.success('Đã thêm món khác');
   };
 
@@ -369,71 +349,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
               </div>
             )}
 
-            {/* Add Custom Item Button */}
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowCustomItemForm(!showCustomItemForm)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors"
-              >
-                <FileText size={18} />
-                <span>Thêm món khác</span>
-              </button>
-
-              {/* Custom Item Form */}
-              {showCustomItemForm && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
-                  <h4 className="font-medium text-gray-900 mb-3">Thêm món khác</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Mô tả món
-                      </label>
-                      <input
-                        type="text"
-                        value={customItem.description}
-                        onChange={(e) => setCustomItem(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="VD: Tóp mỡ, Bớt tiền ốc hương..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Số tiền (VND)
-                      </label>
-                      <input
-                        type="number"
-                        value={customItem.amount}
-                        onChange={(e) => setCustomItem(prev => ({ ...prev, amount: e.target.value }))}
-                        placeholder="VD: 5000, -10000"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Nhập số âm để giảm tiền (VD: -10000)
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={addCustomItem}
-                        disabled={!customItem.isValid}
-                        className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        <Plus size={16} />
-                        Thêm
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowCustomItemForm(false);
-                          setCustomItem({ description: '', amount: '', isValid: false });
-                        }}
-                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                      >
-                        Hủy
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <CustomItemForm onAdd={handleAddCustomItem} />
           </div>
 
           {/* Order Summary */}

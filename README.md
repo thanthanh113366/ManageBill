@@ -126,7 +126,7 @@ npm run dev
 Ứng dụng sẽ chạy tại `http://localhost:5173`
 
 ## Sử dụng
-
+ 
 ### Đăng nhập
 - Mật khẩu mặc định: `quan-oc-2024` (có thể thay đổi trong file `.env`)
 - Password được đọc từ environment variable `VITE_ADMIN_PASSWORD`

@@ -3,6 +3,7 @@ import { Mic, MicOff, X, Check } from 'lucide-react';
 import { useBackendWhisperRecognition } from '../hooks/useBackendWhisperRecognition';
 import { parseVoiceOrder } from '../utils/voiceParser';
 import { createMenuMatcher } from '../utils/menuMatcher';
+import { getVoiceOrderMetrics } from '../utils/voiceOrderMetrics';
 import { toast } from 'react-toastify';
 
 /**
@@ -144,6 +145,14 @@ export const VoiceOrderButton = ({ menuItems, currentCategory, onItemsMatched })
       setShowPreview(true);
       setIsProcessing(false);
 
+      const metrics = getVoiceOrderMetrics();
+      metrics.recordPreview();
+      metrics.recordParsedItems(parsedItems.length);
+      matchedItems.forEach((item) => {
+        metrics.recordMatchedItem(item.menuItemId);
+        metrics.recordMatchConfidence(item.confidence ?? 0);
+      });
+
     } catch (error) {
       console.error('Error processing voice order:', error);
       console.error('Error details:', {
@@ -182,6 +191,7 @@ export const VoiceOrderButton = ({ menuItems, currentCategory, onItemsMatched })
 
   const handleConfirm = () => {
     if (previewData && previewData.matchedItems.length > 0) {
+      getVoiceOrderMetrics().recordAccepted();
       // Ghi đè (không cộng dồn) - theo yêu cầu
       onItemsMatched(previewData.matchedItems);
       
@@ -200,6 +210,7 @@ export const VoiceOrderButton = ({ menuItems, currentCategory, onItemsMatched })
   };
 
   const handleCancel = () => {
+    getVoiceOrderMetrics().recordCancelled();
     setShowPreview(false);
     setPreviewData(null);
     setTranscript('');

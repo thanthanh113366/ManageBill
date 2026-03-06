@@ -16,8 +16,12 @@ import QRCodeManager from './pages/QRCodeManager';
 import PublicBill from './pages/PublicBill';
 import CustomerOrder from './pages/CustomerOrder';
 import OrderSuccess from './pages/OrderSuccess';
+import { initVoiceOrderMetrics } from './utils/voiceOrderMetrics';
 
 import './index.css';
+
+// Init OTLP metrics nếu có env (fire-and-forget)
+initVoiceOrderMetrics().catch(() => {});
 
 // Public Routes (không cần authentication)
 const PublicRoutes = () => {

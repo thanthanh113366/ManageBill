@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
-import { Plus, Minus, ShoppingCart, Calculator, ExternalLink } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Calculator, ExternalLink, FileText } from 'lucide-react';
 import { VoiceOrderButton } from '../components/VoiceOrderButton';
+import { getVoiceOrderMetrics } from '../utils/voiceOrderMetrics';
 import CustomItemForm from '../components/CustomItemForm';
 
 // Categories for menu items
@@ -29,6 +30,9 @@ const CreateBill = () => {
 
   // Custom items (món khác) cho CreateBill
   const [customItems, setCustomItems] = useState([]);
+
+  // Set menuItemId vừa thêm từ voice – dùng để emit metric 7 khi user gỡ món
+  const voiceAddedIdsRef = useRef(new Set());
 
   // Tính toán tổng bill
   const billSummary = useMemo(() => {
@@ -88,15 +92,17 @@ const CreateBill = () => {
   const totalProfitWithCustom = billSummary.totalProfit + customTotals.totalProfit;
 
   const handleQuantityChange = (menuItemId, change) => {
+    const currentQuantity = quantities[menuItemId] || 0;
+    const newQuantity = Math.max(0, currentQuantity + change);
+    if (newQuantity === 0 && voiceAddedIdsRef.current.has(menuItemId)) {
+      getVoiceOrderMetrics().recordUserRemovedVoiceItem(menuItemId);
+      voiceAddedIdsRef.current.delete(menuItemId);
+    }
     setQuantities(prev => {
-      const currentQuantity = prev[menuItemId] || 0;
-      const newQuantity = Math.max(0, currentQuantity + change);
-      
       if (newQuantity === 0) {
         const { [menuItemId]: removed, ...rest } = prev;
         return rest;
       }
-      
       return {
         ...prev,
         [menuItemId]: newQuantity
@@ -106,7 +112,10 @@ const CreateBill = () => {
 
   const setQuantityDirectly = (menuItemId, value) => {
     const quantity = Math.max(0, parseInt(value) || 0);
-    
+    if (quantity === 0 && voiceAddedIdsRef.current.has(menuItemId)) {
+      getVoiceOrderMetrics().recordUserRemovedVoiceItem(menuItemId);
+      voiceAddedIdsRef.current.delete(menuItemId);
+    }
     if (quantity === 0) {
       setQuantities(prev => {
         const { [menuItemId]: removed, ...rest } = prev;
@@ -220,6 +229,7 @@ const CreateBill = () => {
   };
 
   const handleVoiceItemsMatched = (matchedItems) => {
+    matchedItems.forEach(item => voiceAddedIdsRef.current.add(item.menuItemId));
     // Ghi đè (không cộng dồn) - theo yêu cầu
     setQuantities(prev => {
       const newQuantities = { ...prev };

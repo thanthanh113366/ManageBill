@@ -12,7 +12,7 @@ const schema = yup.object({
 });
 
 // Lấy mật khẩu từ environment variable
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'quan-oc-2024';
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 
 const PasswordGate = () => {
   const [showPassword, setShowPassword] = useState(false);

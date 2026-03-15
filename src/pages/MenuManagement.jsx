@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
@@ -6,7 +6,23 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
-import { Plus, Edit, Trash2, X, Save, UtensilsCrossed, Table2, ShoppingBag } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Save, UtensilsCrossed, Table2, ShoppingBag, Upload, ImageIcon } from 'lucide-react';
+
+const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+async function uploadToCloudinary(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_PRESET);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+    { method: 'POST', body: formData }
+  );
+  if (!res.ok) throw new Error('Upload thất bại');
+  const data = await res.json();
+  return data.secure_url;
+}
 
 // Categories for menu items
 const CATEGORIES = [
@@ -103,6 +119,8 @@ const MenuManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Menu form
   const menuForm = useForm({
@@ -854,13 +872,74 @@ const MenuManagement = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      URL hình ảnh
+                      Hình ảnh
                     </label>
+
+                    {/* Preview ảnh hiện tại */}
+                    {orderItemForm.watch('imageUrl') && (
+                      <div className="relative mb-2 w-24 h-24">
+                        <img
+                          src={orderItemForm.watch('imageUrl')}
+                          alt="preview"
+                          className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => orderItemForm.setValue('imageUrl', '')}
+                          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Nút upload */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setIsUploading(true);
+                        try {
+                          const url = await uploadToCloudinary(file);
+                          orderItemForm.setValue('imageUrl', url, { shouldValidate: true });
+                          toast.success('Tải ảnh lên thành công');
+                        } catch {
+                          toast.error('Tải ảnh thất bại, thử lại');
+                        } finally {
+                          setIsUploading(false);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md text-sm text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                          Đang tải lên...
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={16} />
+                          {orderItemForm.watch('imageUrl') ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
+                        </>
+                      )}
+                    </button>
+
+                    {/* Vẫn cho nhập URL thủ công nếu cần */}
                     <input
                       type="url"
                       {...orderItemForm.register('imageUrl')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="https://example.com/image.jpg"
+                      className="mt-2 w-full px-3 py-2 border border-gray-200 rounded-md text-xs text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Hoặc dán URL ảnh..."
                     />
                     {orderItemForm.formState.errors.imageUrl && (
                       <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.imageUrl.message}</p>

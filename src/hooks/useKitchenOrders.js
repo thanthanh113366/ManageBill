@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, deleteDoc, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { useApp } from '../context/AppContext';
 import { calculateKitchenQueue, filterByTable, calculateKitchenStats } from '../utils/kitchenOptimizer';
 
 /**
  * Custom hook để quản lý đơn hàng bếp real-time
  */
 export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
+  const { tables } = useApp();
   const [bills, setBills] = useState([]);
   const [menuTimings, setMenuTimings] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
@@ -29,6 +31,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
     const billsQuery = query(
       collection(db, 'bills'),
       where('date', '==', dateToUse),
+      where('status', 'in', ['pending', 'in_progress']),
       orderBy('createdAt', 'desc')
     );
 
@@ -97,18 +100,16 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
   }, []);
 
   // Tính toán kitchen queue khi có thay đổi
+  // Không chờ menuTimings — nếu rỗng, calculateKitchenQueue tự fallback sang orderItems
   useEffect(() => {
-    if (bills.length > 0 && menuTimings.length > 0 && orderItems.length > 0) {
+    if (!loading && orderItems.length >= 0) {
       try {
-        // Hiển thị TẤT CẢ bills trong ngày (kể cả completed) để thấy món đã xong
         const queue = calculateKitchenQueue(bills, menuTimings, orderItems);
         setKitchenQueue(queue);
-        
-        // Lọc theo bàn nếu có chọn
+
         const filtered = filterByTable(queue, selectedTable);
         setFilteredQueue(filtered);
-        
-        // Tính stats
+
         const kitchenStats = calculateKitchenStats(filtered);
         setStats(kitchenStats);
       } catch (error) {
@@ -116,7 +117,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
         setError('Lỗi tính toán danh sách món');
       }
     }
-  }, [bills, menuTimings, orderItems, selectedTable]);
+  }, [bills, menuTimings, orderItems, selectedTable, loading]);
 
   /**
    * Bắt đầu làm món
@@ -316,20 +317,21 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
     // Data
     kitchenQueue: filteredQueue,
     stats,
+    tables,                              // Danh sách bàn từ Firestore
     availableTables: getAvailableTables(),
     nextItem: getNextItem(),
     cookingItems: getCookingItems(),
-    
+
     // States
     loading,
     error,
-    
+
     // Actions
     startCooking,
     completeCooking,
     undoCompleted,
     deleteAllMenuItemTimings,
-    
+
     // Utils
     clearError: () => setError(null)
   };

@@ -12,26 +12,21 @@
  */
 export const calculateScore = (item, currentTime) => {
   const baseScore = 1000;
-  
-  // Thời gian chờ (phút) - đây là yếu tố quan trọng nhất
-  const waitingTime = (currentTime - item.createdAt) / 1000 / 60;
-  
-  // Các hệ số - tăng weight cho thời gian chờ
-  const waitingWeight = 50;    // Tăng từ 10 lên 50 - món chờ lâu = điểm cao hơn nhiều
-  const billOrderWeight = 10;  // Tăng từ 5 lên 10 - bill đặt trước = điểm cao hơn
-  const quantityWeight = 2;    // Số lượng nhiều = điểm cao
-  const priorityWeight = 50;   // Priority cao = điểm cao
-  
-  // Sử dụng timestamp thay vì billOrder nếu billOrder không có
+
+  // Thời gian chờ tính từ lúc bill được tạo (phút)
   const billTime = item.createdAt?.toDate?.() || new Date(item.createdAt);
-  const billAge = (currentTime - billTime) / 1000 / 60; // phút
-  
-  const score = baseScore 
-    - (waitingTime * waitingWeight)     // Món chờ lâu = điểm cao
-    - (billAge * billOrderWeight)       // Bill cũ = điểm cao
-    + (item.quantity * quantityWeight)  // Số lượng nhiều = điểm cao
-    + ((4 - item.priority) * priorityWeight); // Priority cao = điểm cao
-  
+  const waitingMinutes = (currentTime - billTime) / 1000 / 60;
+
+  // Trọng số
+  const waitingWeight = 50;   // Chờ lâu → ưu tiên cao
+  const quantityWeight = 2;   // Nhiều phần → ưu tiên nhẹ hơn
+  const priorityWeight = 50;  // Priority của món (1=cao nhất)
+
+  const score = baseScore
+    - (waitingMinutes * waitingWeight)
+    + (item.quantity * quantityWeight)
+    + ((4 - item.priority) * priorityWeight);
+
   return Math.max(score, 1);
 };
 
@@ -69,14 +64,14 @@ export const calculateEstimatedTime = (item, timing) => {
  * @param {Array} orderItems - Danh sách order items (FALLBACK SOURCE)
  * @returns {Array} - Danh sách món đã sắp xếp theo ưu tiên
  */
-export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
+export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) => {
   const currentTime = new Date();
-  
-  // Tạo map để lookup timing từ menuItemTimings (fallback)
+
+  // Map timing từ menuItemTimings (nguồn chính, do admin customize)
   const timingMap = new Map();
   menuTimings.forEach(timing => {
-    timingMap.set(timing.menuItemId, timing);
-    timingMap.set(timing.orderItemId, timing);
+    if (timing.menuItemId) timingMap.set(timing.menuItemId, timing);
+    if (timing.orderItemId) timingMap.set(timing.orderItemId, timing);
   });
   
   // Tạo map để lookup thông tin món từ orderItems (primary source)
@@ -87,17 +82,11 @@ export const calculateKitchenQueue = (bills, menuTimings, orderItems = []) => {
   
   // Flatten tất cả items từ bills và thêm thông tin cần thiết
   const allItems = bills
-    .filter(bill => {
-      // Hiển thị tất cả bills trong ngày (kể cả completed)
-      return true;
-    })
+    .filter(bill => bill.status !== 'paid') // Ẩn đơn đã thanh toán
     .flatMap(bill => {
       try {
         return bill.items
-          .filter(item => {
-            // Hiển thị tất cả items (kể cả đã xong)
-            return true;
-          })
+          .filter(item => Boolean(item)) // bỏ qua item null/undefined
           .flatMap(item => {
           // Tìm orderItem: thử orderItemId trước, sau đó thử menuItemId
           let orderItem = orderItemsMap.get(item.orderItemId);

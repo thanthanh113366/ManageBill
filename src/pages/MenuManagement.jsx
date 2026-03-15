@@ -48,8 +48,20 @@ const menuSchema = yup.object({
 const orderItemSchema = yup.object({
   name: yup.string().required('Tên món là bắt buộc'),
   category: yup.string().required('Danh mục là bắt buộc'),
-  parentMenuItemId: yup.string().required('Món cha là bắt buộc'),
-  imageUrl: yup.string().url('URL hình ảnh không hợp lệ'),
+  // parentMenuItemId tuỳ chọn — nếu để trống thì item là standalone và bắt buộc nhập price
+  parentMenuItemId: yup.string().nullable().transform(v => v === '' ? null : v),
+  price: yup.number()
+    .nullable()
+    .transform(v => (isNaN(v) ? null : v))
+    .when('parentMenuItemId', {
+      is: (val) => !val,
+      then: (schema) =>
+        schema
+          .required('Giá bán là bắt buộc khi không có món cha')
+          .min(0, 'Giá bán phải >= 0'),
+      otherwise: (schema) => schema.nullable().optional(),
+    }),
+  imageUrl: yup.string().url('URL hình ảnh không hợp lệ').nullable().optional(),
   // Kitchen timing fields
   estimatedTime: yup.number()
     .required('Thời gian dự kiến là bắt buộc')
@@ -101,6 +113,7 @@ const MenuManagement = () => {
   const orderItemForm = useForm({
     resolver: yupResolver(orderItemSchema)
   });
+  const watchedParentMenuItemId = orderItemForm.watch('parentMenuItemId');
 
   // Table form
   const tableForm = useForm({
@@ -122,7 +135,8 @@ const MenuManagement = () => {
       } else if (type === 'orderItems') {
         orderItemForm.setValue('name', item.name);
         orderItemForm.setValue('category', item.category || 'oc');
-        orderItemForm.setValue('parentMenuItemId', item.parentMenuItemId);
+        orderItemForm.setValue('parentMenuItemId', item.parentMenuItemId || '');
+        orderItemForm.setValue('price', item.price ?? '');
         orderItemForm.setValue('imageUrl', item.imageUrl || '');
         // Kitchen timing fields
         orderItemForm.setValue('estimatedTime', item.estimatedTime || 2);
@@ -799,13 +813,13 @@ const MenuManagement = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Món cha *
+                      Món cha <span className="text-gray-400 font-normal">(để trống nếu món độc lập)</span>
                     </label>
                     <select
                       {...orderItemForm.register('parentMenuItemId')}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     >
-                      <option value="">-- Chọn món cha --</option>
+                      <option value="">-- Món độc lập (không có món cha) --</option>
                       {menuItems.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name} ({getCategoryLabel(item.category)})
@@ -816,6 +830,27 @@ const MenuManagement = () => {
                       <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.parentMenuItemId.message}</p>
                     )}
                   </div>
+
+                  {/* Giá bán — chỉ hiện khi không có món cha */}
+                  {!watchedParentMenuItemId && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Giá bán (VND) *
+                        <span className="ml-1 text-xs text-amber-600">(bắt buộc vì không có món cha)</span>
+                      </label>
+                      <input
+                        type="number"
+                        {...orderItemForm.register('price')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="0"
+                        min="0"
+                        step="1000"
+                      />
+                      {orderItemForm.formState.errors.price && (
+                        <p className="text-red-500 text-sm mt-1">{orderItemForm.formState.errors.price.message}</p>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -110,14 +110,19 @@ export const createMenuItemTimingsForNewItems = async (items) => {
  */
 export const getActiveBillForTable = async (tableNumber) => {
   try {
+    const parsedTableNumber = parseInt(tableNumber, 10);
+    if (isNaN(parsedTableNumber) || parsedTableNumber <= 0) {
+      return null;
+    }
+
     // ✅ CRITICAL: Phải filter theo ngày TRƯỚC KHI filter theo bàn
     const today = new Date().toISOString().split('T')[0];
     
     const q = query(
       collection(db, 'bills'),
-      where('date', '==', today),                    // 1. NGÀY HÔM NAY (QUAN TRỌNG!)
-      where('tableNumber', '==', parseInt(tableNumber)), // 2. Số bàn  
-      where('status', '==', 'pending')               // 3. Chưa thanh toán
+      where('date', '==', today),                          // 1. NGÀY HÔM NAY (QUAN TRỌNG!)
+      where('tableNumber', '==', parsedTableNumber),        // 2. Số bàn
+      where('status', '==', 'pending')                     // 3. Chưa thanh toán
     );
     
     const snapshot = await getDocs(q);
@@ -149,18 +154,24 @@ export const getActiveBillForTable = async (tableNumber) => {
  * 
  * VALIDATION REQUIRED: tableNumber, items, revenue, profit
  */
-export const createCustomerOrder = async (tableNumber, items, totalRevenue, totalProfit) => {
+export const createCustomerOrder = async (tableNumber, items, totalRevenue, totalProfit, note = '') => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    
+
+    const parsedTableNumber = parseInt(tableNumber, 10);
+    if (isNaN(parsedTableNumber) || parsedTableNumber <= 0) {
+      throw new Error(`tableNumber không hợp lệ: "${tableNumber}"`);
+    }
+
     const billData = {
       createdAt: serverTimestamp(),
       date: today,
-      tableNumber: parseInt(tableNumber),
+      tableNumber: parsedTableNumber,
       status: 'pending',
       items: items,
       totalRevenue: totalRevenue,
-      totalProfit: totalProfit
+      totalProfit: totalProfit,
+      ...(note?.trim() ? { note: note.trim() } : {}),
     };
     
     try {
@@ -223,7 +234,7 @@ const mergeItems = (existingItems, newItems) => {
  * 
  * VALIDATION: Phải kiểm tra existingBill.date === today
  */
-export const addItemsToExistingBill = async (billId, existingBill, newItems, additionalRevenue, additionalProfit) => {
+export const addItemsToExistingBill = async (billId, existingBill, newItems, additionalRevenue, additionalProfit, note = '') => {
   try {
     // ✅ SAFETY CHECK: Đảm bảo bill là của ngày hôm nay
     const today = new Date().toISOString().split('T')[0];
@@ -233,12 +244,20 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
     
     // Merge items
     const mergedItems = mergeItems(existingBill.items, newItems);
+
+    // Gộp note: nối thêm nếu đã có
+    const existingNote = existingBill.note || '';
+    const newNote = note?.trim() || '';
+    const mergedNote = existingNote && newNote
+      ? `${existingNote}\n${newNote}`
+      : existingNote || newNote;
     
     // Update bill
     await updateDoc(doc(db, 'bills', billId), {
       items: mergedItems,
       totalRevenue: existingBill.totalRevenue + additionalRevenue,
       totalProfit: existingBill.totalProfit + additionalProfit,
+      ...(mergedNote ? { note: mergedNote } : {}),
       updatedAt: serverTimestamp()
     });
     
@@ -266,7 +285,7 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
  * @param {number} totalProfit - Tổng lợi nhuận
  * @returns {string} - Bill ID
  */
-export const submitCustomerOrder = async (tableNumber, items, totalRevenue, totalProfit) => {
+export const submitCustomerOrder = async (tableNumber, items, totalRevenue, totalProfit, note = '') => {
   try {
     // Check if table has existing pending bill
     const existingBill = await getActiveBillForTable(tableNumber);
@@ -274,18 +293,19 @@ export const submitCustomerOrder = async (tableNumber, items, totalRevenue, tota
     let billId;
     
     if (existingBill) {
-      // Add to existing bill
+      // Add to existing bill (note được gộp vào nếu có)
       await addItemsToExistingBill(
         existingBill.id,
         existingBill,
         items,
         totalRevenue,
-        totalProfit
+        totalProfit,
+        note
       );
       billId = existingBill.id;
     } else {
       // Create new bill
-      billId = await createCustomerOrder(tableNumber, items, totalRevenue, totalProfit);
+      billId = await createCustomerOrder(tableNumber, items, totalRevenue, totalProfit, note);
     }
     
     // ✅ CRITICAL: Tự động tạo menuItemTimings cho items mới (non-blocking)

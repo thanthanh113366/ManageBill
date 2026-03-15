@@ -1,6 +1,11 @@
 /**
  * Voice order metrics – OpenTelemetry metrics for evaluate_voice_order.md
- * Chỉ init và gửi OTLP khi có đủ VITE_OTEL_EXPORTER_OTLP_ENDPOINT và VITE_OTEL_EXPORTER_OTLP_HEADERS
+ *
+ * Browser note:
+ * - If exporting cross-origin directly to Grafana Cloud OTLP gateway, you must provide headers:
+ *   VITE_OTEL_EXPORTER_OTLP_ENDPOINT (absolute) + VITE_OTEL_EXPORTER_OTLP_HEADERS (Authorization=...)
+ * - If exporting to a same-origin proxy (recommended for production, e.g. /api/otlp on Vercel),
+ *   only VITE_OTEL_EXPORTER_OTLP_ENDPOINT is needed; auth is injected server-side.
  */
 
 const noop = () => {};
@@ -13,14 +18,50 @@ let recordMatchedItem = noop;
 let recordMatchConfidence = noop;
 let recordUserRemovedVoiceItem = noop;
 
+function parseHeaders(headersStr) {
+  const headers = {};
+  if (!headersStr) return headers;
+
+  String(headersStr)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const eq = part.indexOf('=');
+      if (eq > 0) {
+        const key = part.slice(0, eq).trim();
+        const raw = part.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+        let value = raw;
+        try {
+          value = decodeURIComponent(raw);
+        } catch {
+          // keep raw
+        }
+        headers[key] = value;
+      }
+    });
+
+  return headers;
+}
+
 /**
- * Gọi một lần khi app load (ví dụ trong main.jsx)
+ * Call once at app startup (main.jsx). Safe to fire-and-forget.
  */
 export async function initVoiceOrderMetrics() {
-  const endpoint = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_OTEL_EXPORTER_OTLP_ENDPOINT;
-  const headersStr = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_OTEL_EXPORTER_OTLP_HEADERS;
+  const endpoint =
+    typeof import.meta !== 'undefined' &&
+    import.meta.env &&
+    import.meta.env.VITE_OTEL_EXPORTER_OTLP_ENDPOINT;
+  const headersStr =
+    typeof import.meta !== 'undefined' &&
+    import.meta.env &&
+    import.meta.env.VITE_OTEL_EXPORTER_OTLP_HEADERS;
 
-  if (!endpoint || !headersStr) {
+  if (!endpoint) return;
+
+  const isRelativeEndpoint = typeof endpoint === 'string' && endpoint.startsWith('/');
+  if (!isRelativeEndpoint && !headersStr) {
+    // Cross-origin export requires Authorization header client-side
     return;
   }
 
@@ -28,19 +69,10 @@ export async function initVoiceOrderMetrics() {
     const { MeterProvider, PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');
     const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http');
 
-    const headers = {};
-    headersStr.split(',').forEach((part) => {
-      const eq = part.indexOf('=');
-      if (eq > 0) {
-        const key = part.slice(0, eq).trim();
-        const value = decodeURIComponent(part.slice(eq + 1).trim().replace(/^["']|["']$/g, ''));
-        headers[key] = value;
-      }
-    });
+    const headers = parseHeaders(headersStr);
+    const url = String(endpoint).replace(/\/?$/, '').replace(/\/v1\/metrics\/?$/, '') + '/v1/metrics';
 
-    const url = endpoint.replace(/\/?$/, '').replace(/\/v1\/metrics\/?$/, '') + '/v1/metrics';
     const exporter = new OTLPMetricExporter({ url, headers });
-
     const reader = new PeriodicExportingMetricReader({
       exporter,
       exportIntervalMillis: 10000
@@ -58,8 +90,7 @@ export async function initVoiceOrderMetrics() {
     });
     const hConfidence = meter.createHistogram('voice_order_match_confidence', {
       description: 'Phân bố confidence khi match',
-      unit: '1',
-      boundaries: [0.5, 0.65, 0.75, 0.9, 1.0]
+      unit: '1'
     });
     const cUserRemoved = meter.createCounter('voice_order_user_removed_voice_item_total', {
       description: 'Số lần user xóa/giảm về 0 món vừa thêm từ voice'
@@ -68,7 +99,10 @@ export async function initVoiceOrderMetrics() {
     recordPreview = () => cPreview.add(1);
     recordAccepted = () => cAccepted.add(1);
     recordCancelled = () => cCancelled.add(1);
-    recordParsedItems = (n) => { if (n > 0) cParsedItems.add(n); };
+    recordParsedItems = (n) => {
+      const v = Number(n);
+      if (!Number.isNaN(v) && v > 0) cParsedItems.add(v);
+    };
     recordMatchedItem = (menuItemId) => {
       if (menuItemId) {
         cMatchedItems.add(1, { menu_item_id: String(menuItemId) });
@@ -103,3 +137,4 @@ export function getVoiceOrderMetrics() {
     recordUserRemovedVoiceItem
   };
 }
+

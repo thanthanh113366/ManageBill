@@ -292,7 +292,7 @@ const BillManagement = () => {
     // Get tables that have active bills for today
     const activeTables = new Set();
     bills.filter(bill => bill.status === 'pending').forEach(bill => {
-      if (bill.tableNumber) {
+      if (Number(bill.tableNumber) > 0) {
         activeTables.add(bill.tableNumber);
       }
     });
@@ -394,7 +394,7 @@ const BillManagement = () => {
                           <p className="text-sm font-medium text-gray-900">
                             Đơn hàng #{bill.id.slice(-6)}
                           </p>
-                          {bill.tableNumber && (
+                          {Number(bill.tableNumber) > 0 && (
                             <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">
                               Bàn {bill.tableNumber}
                             </span>

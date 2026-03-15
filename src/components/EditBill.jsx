@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 import CustomItemForm from './CustomItemForm';
 
 const EditBill = ({ bill, onClose, onUpdated }) => {
-  const { menuItems } = useApp();
+  const { menuItems, orderItems: allOrderItems } = useApp();
   const [selectedCategory, setSelectedCategory] = useState('oc');
   const [orderItems, setOrderItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,32 +26,60 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
   useEffect(() => {
     if (bill && bill.items) {
       const initialItems = bill.items.map(item => {
-        // Handle regular menu items
+        // 1. Item đặt qua staff (dùng menuItemId)
         if (item.menuItemId) {
           const menuItem = menuItems.find(m => m.id === item.menuItemId);
-          return {
-            menuItemId: item.menuItemId,
-            menuItem: menuItem,
-            quantity: item.quantity,
-            type: 'menu'
-          };
+          return menuItem
+            ? { menuItemId: item.menuItemId, menuItem, quantity: item.quantity, type: 'menu' }
+            : null;
         }
-        // Handle custom items
-        else if (item.customDescription) {
+
+        // 2. Item đặt qua khách (dùng orderItemId) — resolve sang menuItem cha
+        if (item.orderItemId) {
+          const orderItem = allOrderItems.find(o => o.id === item.orderItemId);
+          if (orderItem?.parentMenuItemId) {
+            const menuItem = menuItems.find(m => m.id === orderItem.parentMenuItemId);
+            if (menuItem) {
+              return {
+                menuItemId: menuItem.id,
+                menuItem,
+                quantity: item.quantity,
+                type: 'menu',
+                _fromOrderItemId: item.orderItemId, // lưu để tham khảo, không ảnh hưởng logic
+              };
+            }
+          }
+          // Standalone orderItem (không có món cha) — hiển thị như custom
+          if (orderItem) {
+            const price = orderItem.price ?? 0;
+            return {
+              customDescription: orderItem.name,
+              customAmount: price * item.quantity,
+              quantity: 1,
+              type: 'custom',
+              id: `oi_${item.orderItemId}`,
+            };
+          }
+          return null;
+        }
+
+        // 3. Custom item (món ngoài)
+        if (item.customDescription) {
           return {
             customDescription: item.customDescription,
             customAmount: item.customAmount,
-            quantity: 1, // Custom items always have quantity 1
+            quantity: 1,
             type: 'custom',
-            id: `custom_${Date.now()}_${Math.random()}` // Generate unique ID for custom items
+            id: `custom_${Date.now()}_${Math.random()}`,
           };
         }
+
         return null;
-      }).filter(item => item !== null && (item.type === 'custom' || item.menuItem)); // Filter out items where menuItem is not found
-      
+      }).filter(item => item !== null && (item.type === 'custom' || item.menuItem));
+
       setOrderItems(initialItems);
     }
-  }, [bill, menuItems]);
+  }, [bill, menuItems, allOrderItems]);
 
   // Filter menu items by category
   const filteredMenuItems = menuItems.filter(item => item.category === selectedCategory);

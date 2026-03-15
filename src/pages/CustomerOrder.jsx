@@ -165,27 +165,35 @@ const CustomerOrder = () => {
       .finally(() => setLoadingExistingBill(false));
   }, [tableNumber]);
 
-  // ── Scrollspy: cập nhật activeCategory khi cuộn ──
+  // ── Scrollspy: dùng IntersectionObserver (hoạt động ổn trên cả mobile lẫn desktop) ──
   useEffect(() => {
-    const handleScroll = () => {
-      const headerHeight = headerRef.current?.offsetHeight ?? 120;
-      // checkY là vị trí ngay dưới header sticky (+ một chút đệm)
-      const checkY = window.scrollY + headerHeight + 24;
+    // Chờ đến khi data load xong, các section ref mới được gắn vào DOM
+    const hasSections = CATEGORIES.some((cat) => sectionRefs.current[cat.value]);
+    if (!hasSections) return;
 
-      let current = CATEGORIES[0].value;
-      for (const cat of CATEGORIES) {
-        const el = sectionRefs.current[cat.value];
-        if (!el) continue;
-        const elTop = el.getBoundingClientRect().top + window.scrollY;
-        if (elTop <= checkY) current = cat.value;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const intersecting = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (intersecting.length > 0) {
+          const cat = intersecting[0].target.getAttribute('data-category');
+          if (cat) setActiveCategory(cat);
+        }
+      },
+      {
+        rootMargin: '-130px 0px -55% 0px',
+        threshold: 0,
       }
-      setActiveCategory(current);
-    };
+    );
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // chạy 1 lần khi mount
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    CATEGORIES.forEach((cat) => {
+      const el = sectionRefs.current[cat.value];
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [orderItems, isLoading]);
 
   // ── Auto-scroll tab đang active vào vùng nhìn thấy ──
   useEffect(() => {

@@ -273,7 +273,8 @@ const CustomerOrder = () => {
   // ── Gom items theo category → sub-group theo parentMenuItemId ──
   const groupedByCategory = useMemo(() => {
     return CATEGORIES.map((cat) => {
-      const catItems = orderItems.filter((oi) => oi.category === cat.value);
+      // isAvailable mặc định là true nếu chưa set; ẩn khi isAvailable === false
+      const catItems = orderItems.filter((oi) => oi.category === cat.value && oi.isAvailable !== false);
       const grouped = {};
       const standalones = [];
 

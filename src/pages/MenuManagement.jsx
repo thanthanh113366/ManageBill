@@ -507,6 +507,9 @@ const MenuManagement = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Tên món
                         </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Có hôm nay
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Danh mục
                         </th>
@@ -523,11 +526,27 @@ const MenuManagement = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {orderItems.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
+                        <tr key={item.id} className={`hover:bg-gray-50 ${item.isAvailable === false ? 'opacity-50' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {item.name}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <button
+                              onClick={async () => {
+                                const next = item.isAvailable === false ? true : false;
+                                await updateDoc(doc(db, 'orderItems', item.id), { isAvailable: next });
+                              }}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                                item.isAvailable === false ? 'bg-gray-300' : 'bg-indigo-500'
+                              }`}
+                              title={item.isAvailable === false ? 'Đang ẩn — bấm để hiện lại' : 'Đang hiện — bấm để ẩn'}
+                            >
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                                item.isAvailable === false ? 'translate-x-1' : 'translate-x-6'
+                              }`} />
+                            </button>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">

@@ -1,12 +1,27 @@
-import React, { useState, useRef } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import React, { useState, useRef, useCallback } from 'react';
+import { collection, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'react-toastify';
-import { Plus, Edit, Trash2, X, Save, UtensilsCrossed, Table2, ShoppingBag, Upload, ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Save, UtensilsCrossed, Table2, ShoppingBag, Upload, ImageIcon, GripVertical, LayoutGrid, List } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -113,6 +128,89 @@ const TABS = [
   { id: 'tables', label: 'Bàn', icon: Table2 }
 ];
 
+// ── Draggable card dùng trong Layout Editor ──
+const SortableLayoutItem = ({ item, onToggleFullWidth, onToggleBreakBefore }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative bg-white rounded-xl overflow-hidden select-none
+        border-2 transition-shadow
+        ${isDragging ? 'opacity-40 shadow-2xl border-indigo-400 scale-105' : 'border-gray-200 shadow-sm'}
+        ${item.fullWidth ? 'ring-2 ring-indigo-400' : ''}
+        ${item.breakBefore ? 'ring-2 ring-orange-400' : ''}
+        ${item.fullWidth && item.breakBefore ? 'ring-2 ring-purple-400' : ''}
+      `}
+    >
+      {/* Drag handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute top-1 right-1 p-1 cursor-grab active:cursor-grabbing z-10 bg-white/80 rounded-md"
+      >
+        <GripVertical size={14} className="text-gray-400" />
+      </div>
+
+      {/* Image */}
+      {item.imageUrl ? (
+        <img
+          src={item.imageUrl}
+          alt={item.name}
+          className="w-full aspect-square object-cover"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+      ) : (
+        <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-2xl">
+          🍽️
+        </div>
+      )}
+
+      {/* Name */}
+      <div className="px-2 pt-1.5 pb-1">
+        <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-snug">
+          {item.name}
+        </p>
+      </div>
+
+      {/* Toggle flags */}
+      <div className="px-2 pb-2 flex gap-1">
+        <button
+          type="button"
+          onClick={() => onToggleFullWidth(item.id)}
+          title="Chiếm cả hàng (2 cột)"
+          className={`flex-1 text-[10px] font-medium py-1 rounded-lg transition-colors ${
+            item.fullWidth
+              ? 'bg-indigo-500 text-white'
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+        >
+          ↔ Cả hàng
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggleBreakBefore(item.id)}
+          title="Xuống dòng mới trước món này"
+          className={`flex-1 text-[10px] font-medium py-1 rounded-lg transition-colors ${
+            item.breakBefore
+              ? 'bg-orange-500 text-white'
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+        >
+          ↵ Dòng mới
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const MenuManagement = () => {
   const { menuItems, orderItems, tables } = useApp();
   const [activeTab, setActiveTab] = useState('menu');
@@ -121,6 +219,73 @@ const MenuManagement = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  // ── Layout editor state ──
+  const [layoutMode, setLayoutMode] = useState(false);
+  const [layoutDraft, setLayoutDraft] = useState({});
+  const [isSavingLayout, setIsSavingLayout] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
+
+  const enterLayoutMode = useCallback(() => {
+    const draft = {};
+    ORDER_CATEGORIES.forEach((cat) => {
+      draft[cat.value] = orderItems
+        .filter((oi) => oi.category === cat.value)
+        .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999))
+        .map((oi) => ({ ...oi }));
+    });
+    setLayoutDraft(draft);
+    setLayoutMode(true);
+  }, [orderItems]);
+
+  const handleLayoutDragEnd = useCallback((event, categoryValue) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setLayoutDraft((prev) => {
+      const items = [...(prev[categoryValue] || [])];
+      const oldIdx = items.findIndex((i) => i.id === active.id);
+      const newIdx = items.findIndex((i) => i.id === over.id);
+      if (oldIdx === -1 || newIdx === -1) return prev;
+      return { ...prev, [categoryValue]: arrayMove(items, oldIdx, newIdx) };
+    });
+  }, []);
+
+  const toggleLayoutFlag = useCallback((categoryValue, itemId, flag) => {
+    setLayoutDraft((prev) => ({
+      ...prev,
+      [categoryValue]: prev[categoryValue].map((item) =>
+        item.id === itemId ? { ...item, [flag]: !item[flag] } : item
+      ),
+    }));
+  }, []);
+
+  const saveLayout = async () => {
+    setIsSavingLayout(true);
+    try {
+      const batch = writeBatch(db);
+      ORDER_CATEGORIES.forEach((cat) => {
+        (layoutDraft[cat.value] || []).forEach((item, index) => {
+          batch.update(doc(db, 'orderItems', item.id), {
+            sortOrder: index,
+            fullWidth: item.fullWidth || false,
+            breakBefore: item.breakBefore || false,
+          });
+        });
+      });
+      await batch.commit();
+      toast.success('Đã lưu bố cục thành công!');
+      setLayoutMode(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Lỗi khi lưu bố cục');
+    } finally {
+      setIsSavingLayout(false);
+    }
+  };
 
   // Menu form
   const menuForm = useForm({
@@ -348,15 +513,61 @@ const MenuManagement = () => {
 
         {/* Content */}
         <div className="p-6">
-          {/* Add button */}
-          <div className="flex justify-end mb-6">
-            <button
-              onClick={() => openModal(null, activeTab)}
-              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Plus size={20} className="mr-2" />
-              {activeTab === 'menu' ? 'Thêm món' : activeTab === 'orderItems' ? 'Thêm món đặt hàng' : 'Thêm bàn'}
-            </button>
+          {/* Add button / Layout editor toolbar */}
+          <div className="flex justify-between items-center mb-6 gap-2 flex-wrap">
+            {/* Left: view toggle for orderItems tab */}
+            {activeTab === 'orderItems' && (
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                  <button
+                    onClick={() => setLayoutMode(false)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+                      !layoutMode
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <List size={15} />
+                    Danh sách
+                  </button>
+                  <button
+                    onClick={enterLayoutMode}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors border-l border-gray-200 ${
+                      layoutMode
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <LayoutGrid size={15} />
+                    Sắp xếp layout
+                  </button>
+                </div>
+                {layoutMode && (
+                  <button
+                    onClick={saveLayout}
+                    disabled={isSavingLayout}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {isSavingLayout ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    ) : (
+                      <Save size={15} />
+                    )}
+                    Lưu bố cục
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Right: add button (hidden in layout mode) */}
+            {!layoutMode && (
+              <button
+                onClick={() => openModal(null, activeTab)}
+                className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors ml-auto"
+              >
+                <Plus size={20} className="mr-2" />
+                {activeTab === 'menu' ? 'Thêm món' : activeTab === 'orderItems' ? 'Thêm món đặt hàng' : 'Thêm bàn'}
+              </button>
+            )}
           </div>
 
           {/* Menu Tab Content */}
@@ -480,121 +691,198 @@ const MenuManagement = () => {
           {/* Order Items Tab Content */}
           {activeTab === 'orderItems' && (
             <>
-              {orderItems.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 mb-4">
-                    <ShoppingBag size={48} className="mx-auto" />
+              {/* ── Layout Editor Mode ── */}
+              {layoutMode && (
+                <div className="space-y-6">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-700 flex items-start gap-2">
+                    <LayoutGrid size={16} className="mt-0.5 shrink-0" />
+                    <div>
+                      <strong>Chế độ sắp xếp layout:</strong> Kéo thả để thay đổi thứ tự.
+                      Bật <span className="font-semibold text-indigo-600">↔ Cả hàng</span> để món chiếm cả 2 cột.
+                      Bật <span className="font-semibold text-orange-600">↵ Dòng mới</span> để món luôn xuất hiện đầu dòng.
+                    </div>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Chưa có món đặt hàng nào
-                  </h3>
-                  <p className="text-gray-600 mb-4">
-                    Thêm món đặt hàng đầu tiên cho khách hàng
-                  </p>
-                  <button
-                    onClick={() => openModal(null, 'orderItems')}
-                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    <Plus size={20} className="mr-2" />
-                    Thêm món đặt hàng
-                  </button>
+
+                  {ORDER_CATEGORIES.map((cat) => {
+                    const catItems = layoutDraft[cat.value] || [];
+                    if (catItems.length === 0) return null;
+                    return (
+                      <div key={cat.value}>
+                        <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-3 flex items-center gap-2">
+                          {cat.label}
+                          <span className="text-xs font-normal text-gray-400 normal-case tracking-normal">
+                            ({catItems.length} món)
+                          </span>
+                        </h3>
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(event) => handleLayoutDragEnd(event, cat.value)}
+                        >
+                          <SortableContext
+                            items={catItems.map((i) => i.id)}
+                            strategy={rectSortingStrategy}
+                          >
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                              {catItems.map((item) => (
+                                <SortableLayoutItem
+                                  key={item.id}
+                                  item={item}
+                                  onToggleFullWidth={(id) => toggleLayoutFlag(cat.value, id, 'fullWidth')}
+                                  onToggleBreakBefore={(id) => toggleLayoutFlag(cat.value, id, 'breakBefore')}
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                      </div>
+                    );
+                  })}
+
+                  {/* Bottom save/cancel bar */}
+                  <div className="flex gap-3 pt-2 border-t border-gray-200">
+                    <button
+                      onClick={() => setLayoutMode(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      onClick={saveLayout}
+                      disabled={isSavingLayout}
+                      className="inline-flex items-center gap-2 px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {isSavingLayout ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      ) : (
+                        <Save size={15} />
+                      )}
+                      Lưu bố cục
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Tên món
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Có hôm nay
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Danh mục
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Món cha
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Hình ảnh
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Thao tác
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {orderItems.map((item) => (
-                        <tr key={item.id} className={`hover:bg-gray-50 ${item.isAvailable === false ? 'opacity-50' : ''}`}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {item.name}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <button
-                              onClick={async () => {
-                                const next = item.isAvailable === false ? true : false;
-                                await updateDoc(doc(db, 'orderItems', item.id), { isAvailable: next });
-                              }}
-                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                                item.isAvailable === false ? 'bg-gray-300' : 'bg-indigo-500'
-                              }`}
-                              title={item.isAvailable === false ? 'Đang ẩn — bấm để hiện lại' : 'Đang hiện — bấm để ẩn'}
-                            >
-                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                                item.isAvailable === false ? 'translate-x-1' : 'translate-x-6'
-                              }`} />
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                              {getOrderCategoryLabel(item.category || 'oc')}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {getParentMenuItemName(item.parentMenuItemId)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {item.imageUrl ? (
-                              <img 
-                                src={item.imageUrl} 
-                                alt={item.name}
-                                className="w-12 h-12 object-cover rounded-lg"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                                <ShoppingBag size={20} className="text-gray-400" />
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex justify-end space-x-2">
-                              <button
-                                onClick={() => openModal(item, 'orderItems')}
-                                className="text-indigo-600 hover:text-indigo-900 p-1"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(item, 'orderItems')}
-                                className="text-red-600 hover:text-red-900 p-1"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              )}
+
+              {/* ── List Mode ── */}
+              {!layoutMode && (
+                <>
+                  {orderItems.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 mb-4">
+                        <ShoppingBag size={48} className="mx-auto" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        Chưa có món đặt hàng nào
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Thêm món đặt hàng đầu tiên cho khách hàng
+                      </p>
+                      <button
+                        onClick={() => openModal(null, 'orderItems')}
+                        className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                      >
+                        <Plus size={20} className="mr-2" />
+                        Thêm món đặt hàng
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Tên món
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Có hôm nay
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Danh mục
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Món cha
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Hình ảnh
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Thao tác
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {orderItems.map((item) => (
+                            <tr key={item.id} className={`hover:bg-gray-50 ${item.isAvailable === false ? 'opacity-50' : ''}`}>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {item.name}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-center">
+                                <button
+                                  onClick={async () => {
+                                    const next = item.isAvailable === false ? true : false;
+                                    await updateDoc(doc(db, 'orderItems', item.id), { isAvailable: next });
+                                  }}
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                                    item.isAvailable === false ? 'bg-gray-300' : 'bg-indigo-500'
+                                  }`}
+                                  title={item.isAvailable === false ? 'Đang ẩn — bấm để hiện lại' : 'Đang hiện — bấm để ẩn'}
+                                >
+                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                                    item.isAvailable === false ? 'translate-x-1' : 'translate-x-6'
+                                  }`} />
+                                </button>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                  {getOrderCategoryLabel(item.category || 'oc')}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">
+                                  {getParentMenuItemName(item.parentMenuItemId)}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {item.imageUrl ? (
+                                  <img
+                                    src={item.imageUrl}
+                                    alt={item.name}
+                                    className="w-12 h-12 object-cover rounded-lg"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                    <ShoppingBag size={20} className="text-gray-400" />
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div className="flex justify-end space-x-2">
+                                  <button
+                                    onClick={() => openModal(item, 'orderItems')}
+                                    className="text-indigo-600 hover:text-indigo-900 p-1"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(item, 'orderItems')}
+                                    className="text-red-600 hover:text-red-900 p-1"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

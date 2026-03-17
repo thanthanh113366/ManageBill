@@ -23,13 +23,13 @@ const formatCurrency = (amount) =>
 // ──────────────────────────────────────────────
 const SkeletonCard = () => (
   <div className="space-y-5 animate-pulse">
-    <div className="h-4 w-1/4 bg-gray-200 rounded" />
+    <div className="h-4 w-1/4 bg-white/50 rounded" />
     <div className="grid grid-cols-2 gap-3">
       {[1, 2, 3, 4].map((i) => (
         <div key={i} className="space-y-2">
-          <div className="aspect-square bg-gray-200 rounded-2xl" />
-          <div className="h-3 w-3/4 bg-gray-200 rounded" />
-          <div className="h-3 w-1/2 bg-gray-200 rounded" />
+          <div className="aspect-square bg-white/50 rounded-2xl" />
+          <div className="h-3 w-3/4 bg-white/50 rounded" />
+          <div className="h-3 w-1/2 bg-white/50 rounded" />
         </div>
       ))}
     </div>
@@ -37,60 +37,104 @@ const SkeletonCard = () => (
 );
 
 // ──────────────────────────────────────────────
-// Confirm modal (bottom sheet on mobile)
+// Confirm modal (bottom sheet on mobile, swipe-down to close)
 // ──────────────────────────────────────────────
-const ConfirmModal = ({ items, note, totalRevenue, onConfirm, onCancel, isSubmitting }) => (
-  <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-    <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-    <div className="relative bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[80vh] flex flex-col">
-      <div className="flex justify-center pt-3 pb-1 sm:hidden">
-        <div className="w-10 h-1 bg-gray-300 rounded-full" />
-      </div>
-      <div className="px-5 pt-3 pb-2 flex justify-between items-center">
-        <h2 className="text-lg font-bold text-gray-900">Xác nhận đặt món</h2>
-        <button onClick={onCancel} className="p-1 text-gray-400 hover:text-gray-600">
-          <X size={20} />
-        </button>
-      </div>
-      <div className="overflow-y-auto px-5 pb-2 flex-1">
-        <ul className="divide-y divide-gray-100">
-          {items.map((item) => (
-            <li key={item.orderItemId} className="py-2.5 flex justify-between items-center text-sm">
-              <span className="text-gray-800 font-medium">
-                {item.name}
-                <span className="ml-1 text-gray-400 font-normal">×{item.quantity}</span>
-              </span>
-              <span className="text-indigo-600 font-semibold">{formatCurrency(item.revenue)}</span>
-            </li>
-          ))}
-        </ul>
-        {note?.trim() && (
-          <div className="mt-3 bg-amber-50 rounded-xl p-3 text-sm text-amber-800">
-            <span className="font-medium">Ghi chú: </span>{note}
-          </div>
-        )}
-      </div>
-      <div className="px-5 pt-3 pb-6 border-t border-gray-100 space-y-3">
-        <div className="flex justify-between text-base font-bold text-gray-900">
-          <span>Tổng cộng</span>
-          <span className="text-indigo-600">{formatCurrency(totalRevenue)}</span>
+const SWIPE_CLOSE_THRESHOLD = 80;
+
+const ConfirmModal = ({ items, note, totalRevenue, onConfirm, onCancel, isSubmitting }) => {
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startYRef = useRef(null);
+
+  const handleTouchStart = (e) => {
+    startYRef.current = e.touches[0].clientY;
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (startYRef.current === null) return;
+    const delta = e.touches[0].clientY - startYRef.current;
+    if (delta > 0) setDragY(delta); // chỉ cho kéo xuống
+  };
+
+  const handleTouchEnd = () => {
+    if (dragY >= SWIPE_CLOSE_THRESHOLD && !isSubmitting) {
+      onCancel();
+    } else {
+      setDragY(0);
+    }
+    setIsDragging(false);
+    startYRef.current = null;
+  };
+
+  const opacity = Math.max(0.15, 0.4 - (dragY / 400));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" style={{ opacity: opacity / 0.4 }} />
+      <div
+        className="relative bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[80vh] flex flex-col"
+        style={{
+          transform: `translateY(${dragY}px)`,
+          transition: isDragging ? 'none' : 'transform 300ms cubic-bezier(0.32,0.72,0,1)',
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className={`w-10 h-1 rounded-full transition-colors ${dragY > 40 ? 'bg-indigo-400' : 'bg-gray-300'}`} />
         </div>
-        <button
-          onClick={onConfirm}
-          disabled={isSubmitting}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2"
-        >
-          {isSubmitting ? (
-            <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> Đang gửi...</>
-          ) : 'Xác nhận đặt món'}
-        </button>
-        <button onClick={onCancel} disabled={isSubmitting} className="w-full text-gray-500 text-sm font-medium py-1.5">
-          Hủy, sửa lại
-        </button>
+
+        <div className="px-5 pt-3 pb-2 flex justify-between items-center">
+          <h2 className="text-lg font-bold text-gray-900">Xác nhận đặt món</h2>
+          <button onClick={onCancel} className="p-1 text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-5 pb-2 flex-1">
+          <ul className="divide-y divide-gray-100">
+            {items.map((item) => (
+              <li key={item.orderItemId} className="py-2.5 flex justify-between items-center text-sm">
+                <span className="text-gray-800 font-medium">
+                  {item.name}
+                  <span className="ml-1 text-gray-400 font-normal">×{item.quantity}</span>
+                </span>
+                <span className="text-indigo-600 font-semibold">{formatCurrency(item.revenue)}</span>
+              </li>
+            ))}
+          </ul>
+          {note?.trim() && (
+            <div className="mt-3 bg-amber-50 rounded-xl p-3 text-sm text-amber-800">
+              <span className="font-medium">Ghi chú: </span>{note}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 pt-3 pb-6 border-t border-gray-100 space-y-3">
+          <div className="flex justify-between text-base font-bold text-gray-900">
+            <span>Tổng cộng</span>
+            <span className="text-indigo-600">{formatCurrency(totalRevenue)}</span>
+          </div>
+          <button
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> Đang gửi...</>
+            ) : 'Xác nhận đặt món'}
+          </button>
+          <button onClick={onCancel} disabled={isSubmitting} className="w-full text-gray-500 text-sm font-medium py-1.5">
+            Hủy, sửa lại
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ──────────────────────────────────────────────
 // Main component
@@ -114,6 +158,16 @@ const CustomerOrder = () => {
   const [note, setNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // ── Khoá scroll body khi modal mở ──
+  useEffect(() => {
+    if (showConfirmModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showConfirmModal]);
 
   // ── Scrollspy refs ──
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].value);
@@ -263,7 +317,10 @@ const CustomerOrder = () => {
   const groupedByCategory = useMemo(() => {
     return CATEGORIES.map((cat) => {
       // isAvailable mặc định là true nếu chưa set; ẩn khi isAvailable === false
-      const catItems = orderItems.filter((oi) => oi.category === cat.value && oi.isAvailable !== false);
+      // Sort theo sortOrder nếu có (layout do admin cấu hình)
+      const catItems = orderItems
+        .filter((oi) => oi.category === cat.value && oi.isAvailable !== false)
+        .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
       const grouped = {};
       const standalones = [];
 
@@ -315,13 +372,13 @@ const CustomerOrder = () => {
   // RENDER
   // ════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
+    <div className="min-h-screen bg-gradient-to-br from-violet-100 via-purple-50 to-indigo-100 pb-28">
 
       {/* ── Sticky header ── */}
-      <div ref={headerRef} className="bg-white sticky top-0 z-10 shadow-sm">
+      <div ref={headerRef} className="bg-white/80 backdrop-blur-md sticky top-0 z-10 shadow-sm">
 
         {/* Title row */}
-        <div className="px-5 pt-4 pb-3 border-b border-gray-100">
+        <div className="px-5 pt-4 pb-3 border-b border-white/50">
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Ốc đây nè</p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-2xl font-extrabold text-gray-900 tracking-tight">Bàn {tableNumber}</span>
@@ -359,7 +416,7 @@ const CustomerOrder = () => {
 
         {/* Đơn đã gọi */}
         {!loadingExistingBill && existingBill && existingBillItems.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden mb-4">
+          <div className="bg-amber-50/80 backdrop-blur-sm border border-amber-200/70 rounded-2xl overflow-hidden mb-4">
             <button
               onClick={() => setShowExistingBill((v) => !v)}
               className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -407,8 +464,8 @@ const CustomerOrder = () => {
           >
             {/* Section header */}
             <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-base font-bold text-gray-800">{cat.label}</h2>
-              <div className="flex-1 h-px bg-gray-200" />
+              <h2 className="text-base font-bold text-gray-800/90">{cat.label}</h2>
+              <div className="flex-1 h-px bg-white/60" />
             </div>
 
             {/* Groups */}
@@ -433,9 +490,11 @@ const CustomerOrder = () => {
                         <div
                           key={oi.id}
                           onClick={() => handleQuantityChange(oi.id, 1)}
-                          className={`relative bg-white rounded-2xl overflow-hidden shadow-sm cursor-pointer select-none
+                          className={`relative bg-white/75 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm border border-white/60 cursor-pointer select-none
                             active:scale-[0.96] transition-transform duration-100
-                            ${qty > 0 ? 'ring-2 ring-indigo-400 ring-offset-1' : ''}`}
+                            ${qty > 0 ? 'ring-2 ring-indigo-400 ring-offset-1' : ''}
+                            ${oi.fullWidth ? 'col-span-2' : ''}
+                            ${oi.breakBefore ? 'col-start-1' : ''}`}
                         >
                           {/* Image area */}
                           <div className="relative">
@@ -446,7 +505,7 @@ const CustomerOrder = () => {
                                 onError={(e) => { e.target.style.display = 'none'; }}
                               />
                             ) : (
-                              <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-3xl">🍽️</div>
+                              <div className="w-full aspect-square bg-white/40 flex items-center justify-center text-3xl">🍽️</div>
                             )}
 
                             {/* Quantity badge — góc trên trái */}
@@ -501,7 +560,7 @@ const CustomerOrder = () => {
 
         {/* ── Ghi chú ── */}
         {!isLoading && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-6">
+          <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 shadow-sm overflow-hidden mt-6">
             <button
               onClick={() => setShowNoteInput((v) => !v)}
               className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -533,25 +592,22 @@ const CustomerOrder = () => {
       </div>
 
       {/* ── Floating cart button ── */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-sm border-t border-gray-100 z-20">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-white/40 z-20 flex justify-center">
         <button
           onClick={handleSubmitClick}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-between px-5 transition-all duration-200 shadow-lg active:scale-[0.98]"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-10 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 shadow-lg active:scale-[0.98] min-w-[200px]"
         >
           {summary.totalItems === 0 ? (
-            <span className="mx-auto text-base font-semibold">Xem hóa đơn</span>
+            <span className="text-base font-semibold">Xem hóa đơn</span>
           ) : (
             <>
-              <div className="flex items-center gap-2">
-                <span
-                  key={summary.totalItems}
-                  className="animate-bump bg-white/20 rounded-xl px-2.5 py-1 text-sm font-bold"
-                >
-                  {summary.totalItems}
-                </span>
-                <span>món đã chọn</span>
-              </div>
-              <span className="font-extrabold text-lg">{formatCurrency(summary.totalRevenue)}</span>
+              <span
+                key={summary.totalItems}
+                className="animate-bump bg-white/20 rounded-xl px-2.5 py-1 text-sm font-bold"
+              >
+                {summary.totalItems}
+              </span>
+              <span className="text-base font-semibold">món đã chọn</span>
             </>
           )}
         </button>

@@ -315,6 +315,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
 
   return {
     // Data
+    bills,
     kitchenQueue: filteredQueue,
     stats,
     tables,                              // Danh sách bàn từ Firestore

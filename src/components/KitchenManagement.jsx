@@ -18,7 +18,7 @@ const urgencyColor = (minutes) => {
 
 // ── Table Card ────────────────────────────────────────────────────────────────
 
-const TableCard = ({ tableNumber, items, now, onComplete, onUndo }) => {
+const TableCard = ({ tableNumber, items, now, onComplete, onUndo, note }) => {
   const pending   = items.filter(i => !i.isCompleted && i.kitchenStatus !== 'ready');
   const completed = items.filter(i =>  i.isCompleted || i.kitchenStatus === 'ready');
 
@@ -40,6 +40,13 @@ const TableCard = ({ tableNumber, items, now, onComplete, onUndo }) => {
         <span className="text-white font-bold text-base">Bàn {tableNumber}</span>
         <span className="text-white/80 text-xs font-medium">{maxWait}p</span>
       </div>
+
+      {/* Ghi chú của khách */}
+      {note?.trim() && (
+        <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-100 shrink-0">
+          <p className="text-xs text-amber-700 italic leading-snug">📝 {note}</p>
+        </div>
+      )}
 
       {/* Danh sách món */}
       <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
@@ -118,6 +125,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
   }, []);
 
   const {
+    bills,
     kitchenQueue,
     tables,
     loading,
@@ -144,16 +152,21 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     filteredQueue.forEach(item => {
       const tn = item.tableNumber;
       if (!grouped[tn]) {
-        grouped[tn] = { tableNumber: tn, items: [], earliestTime: Infinity };
+        grouped[tn] = { tableNumber: tn, items: [], earliestTime: Infinity, note: '' };
       }
       grouped[tn].items.push(item);
       const t = item.createdAt?.toDate?.() || new Date(item.createdAt || 0);
       if (t < grouped[tn].earliestTime) grouped[tn].earliestTime = t;
+      // Lấy ghi chú từ bill tương ứng (ưu tiên bill mới nhất có note)
+      if (!grouped[tn].note && item.billId) {
+        const bill = bills.find(b => b.id === item.billId);
+        if (bill?.note?.trim()) grouped[tn].note = bill.note;
+      }
     });
 
     return Object.values(grouped)
       .sort((a, b) => a.earliestTime - b.earliestTime);
-  }, [filteredQueue]);
+  }, [filteredQueue, bills]);
 
   const handleComplete = (item) =>
     completeCooking(item.billId, item.orderItemId || item.menuItemId, item.batchOrder);
@@ -258,7 +271,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
           ) : (
             <div className="grid grid-cols-4 grid-rows-2 gap-3 h-full min-h-0"
                  style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
-              {tableCards.map(({ tableNumber, items }) => (
+              {tableCards.map(({ tableNumber, items, note }) => (
                 <TableCard
                   key={tableNumber}
                   tableNumber={tableNumber}
@@ -266,6 +279,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
                   now={now}
                   onComplete={handleComplete}
                   onUndo={handleUndo}
+                  note={note}
                 />
               ))}
             </div>

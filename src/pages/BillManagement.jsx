@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat } from 'lucide-react';
+import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat, RotateCcw } from 'lucide-react';
 import { toast } from 'react-toastify';
 import EditBill from '../components/EditBill';
 import KitchenManagement from '../components/KitchenManagement';
@@ -144,6 +144,41 @@ const BillManagement = () => {
         pauseOnHover: true,
         draggable: false,
       }
+    );
+  };
+
+  const handleUndoPayment = (bill) => {
+    if (processingPayment === bill.id) return;
+
+    const doUndo = () => {
+      toast.dismiss();
+      setProcessingPayment(bill.id);
+      updateDoc(doc(db, 'bills', bill.id), {
+        status: 'pending',
+        paidAt: null,
+        updatedAt: serverTimestamp(),
+      })
+        .then(() => toast.success(`Đã hoàn tác thanh toán đơn #${bill.id.slice(-6)}`, { autoClose: 2000 }))
+        .catch(() => toast.error('Có lỗi khi hoàn tác thanh toán'))
+        .finally(() => setProcessingPayment(null));
+    };
+
+    toast.warn(
+      <div>
+        <p className="font-medium mb-1">Hoàn tác thanh toán đơn #{bill.id.slice(-6)}?</p>
+        <p className="text-sm text-gray-600 mb-3">
+          Bàn {bill.tableNumber} – {new Intl.NumberFormat('vi-VN').format(bill.totalRevenue)} ₫
+        </p>
+        <div className="flex gap-2">
+          <button onClick={doUndo} className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700">
+            Xác nhận
+          </button>
+          <button onClick={() => toast.dismiss()} className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600">
+            Hủy
+          </button>
+        </div>
+      </div>,
+      { position: 'top-center', autoClose: false, hideProgressBar: true, closeOnClick: false, pauseOnHover: true, draggable: false }
     );
   };
 
@@ -451,6 +486,21 @@ const BillManagement = () => {
                             <CheckCircle size={16} />
                           )}
                           <span className="hidden sm:inline">Thanh toán</span>
+                        </button>
+                      )}
+                      {bill.status === 'paid' && (
+                        <button
+                          onClick={() => handleUndoPayment(bill)}
+                          disabled={processingPayment === bill.id}
+                          className="flex items-center gap-1 px-3 py-2 text-sm text-orange-600 hover:text-orange-800 hover:bg-orange-50 rounded-md border border-orange-200 disabled:opacity-50 transition-colors"
+                          title="Hoàn tác thanh toán"
+                        >
+                          {processingPayment === bill.id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                          ) : (
+                            <RotateCcw size={16} />
+                          )}
+                          <span className="hidden sm:inline">Hoàn tác</span>
                         </button>
                       )}
                       <button

@@ -143,10 +143,13 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
           const remainingQuantity = Math.max(0, quantity - completedCount);
           
           const result = [];
-          
+          // Món được gọi thêm (sau lần đặt đầu tiên) có trường addedAt
+          const isAdded = !!item.addedAt;
+          // Dùng addedAt của item nếu có, fallback về thời gian tạo bill
+          const itemCreatedAt = item.addedAt ? new Date(item.addedAt) : bill.createdAt;
+
           // Thêm món đã hoàn thành (hiển thị với status "ready")
           for (let i = 0; i < completedCount; i++) {
-            // Tìm tên món với ưu tiên cao nhất
             const itemName = orderItem?.name || 
                            item.name || 
                            timing?.name || 
@@ -157,29 +160,29 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
               billId: bill.id,
               tableNumber: bill.tableNumber,
               billOrder: bill.billOrder || 999,
-              createdAt: bill.createdAt,
+              createdAt: itemCreatedAt,
               timing: timing,
-              kitchenStatus: 'ready', // Đã hoàn thành
+              kitchenStatus: 'ready',
               name: itemName,
               quantity: 1,
               batchOrder: i + 1,
               batchTotal: quantity,
               originalQuantity: quantity,
+              isAdded,
               score: calculateScore({
                 ...item,
                 billOrder: bill.billOrder || 999,
-                createdAt: bill.createdAt,
+                createdAt: itemCreatedAt,
                 priority: timing?.priority || 1,
                 quantity: 1
               }, currentTime),
               estimatedTime: calculateEstimatedTime({ ...item, quantity: 1 }, timing),
-              isCompleted: true // Flag để phân biệt
+              isCompleted: true
             });
           }
           
           // Thêm món chưa hoàn thành (hiển thị với status "cooking")
           for (let i = 0; i < remainingQuantity; i++) {
-            // Tìm tên món với ưu tiên cao nhất
             const itemName = orderItem?.name || 
                            item.name || 
                            timing?.name || 
@@ -190,7 +193,7 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
               billId: bill.id,
               tableNumber: bill.tableNumber,
               billOrder: bill.billOrder || 999,
-              createdAt: bill.createdAt,
+              createdAt: itemCreatedAt,
               timing: timing,
               kitchenStatus: item.kitchenStatus || 'cooking',
               name: itemName,
@@ -198,10 +201,11 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
               batchOrder: completedCount + i + 1,
               batchTotal: quantity,
               originalQuantity: quantity,
+              isAdded,
               score: calculateScore({
                 ...item,
                 billOrder: bill.billOrder || 999,
-                createdAt: bill.createdAt,
+                createdAt: itemCreatedAt,
                 priority: timing?.priority || 1,
                 quantity: 1
               }, currentTime),

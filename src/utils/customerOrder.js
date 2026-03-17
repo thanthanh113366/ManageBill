@@ -190,38 +190,32 @@ export const createCustomerOrder = async (tableNumber, items, totalRevenue, tota
 };
 
 /**
- * Merge items: nếu món đã có thì cộng quantity, chưa có thì thêm mới
- * @param {Array} existingItems - Items hiện tại
- * @param {Array} newItems - Items mới
- * @returns {Array} - Merged items
+ * Merge items: nếu món đã có thì cộng quantity, chưa có thì thêm mới.
+ * Đánh dấu addedAt trên các item được thêm sau (để bếp nhận biết).
  */
 const mergeItems = (existingItems, newItems) => {
-  const itemsMap = new Map();
-  
-  // Add existing items to map (handle both menuItemId and orderItemId)
-  existingItems.forEach(item => {
-    const key = item.menuItemId || item.orderItemId;
-    itemsMap.set(key, item.quantity);
-  });
-  
-  // Merge new items
-  newItems.forEach(item => {
-    const key = item.menuItemId || item.orderItemId;
-    const currentQty = itemsMap.get(key) || 0;
-    itemsMap.set(key, currentQty + item.quantity);
-  });
-  
-  // Convert back to array (preserve original structure)
-  return Array.from(itemsMap, ([itemId, quantity]) => {
-    // Check if original items had menuItemId or orderItemId
-    const hasOrderItemId = newItems.some(item => item.orderItemId) || existingItems.some(item => item.orderItemId);
-    
-    if (hasOrderItemId) {
-      return { orderItemId: itemId, quantity };
+  const addedAt = new Date().toISOString();
+  // Bắt đầu từ existing items (giữ nguyên cấu trúc + addedAt cũ nếu có)
+  const result = existingItems.map(i => ({ ...i }));
+
+  newItems.forEach(newItem => {
+    const newKey = newItem.orderItemId || newItem.menuItemId;
+    const idx = result.findIndex(i => (i.orderItemId || i.menuItemId) === newKey);
+
+    if (idx >= 0) {
+      // Món đã có — tăng số lượng và đánh dấu thêm mới
+      result[idx] = {
+        ...result[idx],
+        quantity: result[idx].quantity + newItem.quantity,
+        addedAt,
+      };
     } else {
-      return { menuItemId: itemId, quantity };
+      // Món hoàn toàn mới — thêm vào cuối với addedAt
+      result.push({ ...newItem, addedAt });
     }
   });
+
+  return result;
 };
 
 /**

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { toast } from 'react-toastify';
-import { Plus, Minus, ChevronDown, ChevronUp, MessageSquare, X } from 'lucide-react';
+import { Plus, Minus, ChevronDown, ChevronUp, MessageSquare, X, ShoppingCart } from 'lucide-react';
 import { submitCustomerOrder, testFirestoreConnection, getActiveBillForTable } from '../utils/customerOrder';
 import { calculateOrderItemTotals } from '../utils/billCalculations';
 
@@ -378,16 +378,15 @@ const CustomerOrder = () => {
       <div ref={headerRef} className="bg-white/80 backdrop-blur-md sticky top-0 z-10 shadow-sm">
 
         {/* Title row */}
-        <div className="px-5 pt-4 pb-3 border-b border-white/50">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Ốc đây nè</p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-2xl font-extrabold text-gray-900 tracking-tight">Bàn {tableNumber}</span>
-            {existingBill && !loadingExistingBill && (
-              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
-                Đã có đơn
-              </span>
-            )}
-          </div>
+        <div className="px-5 py-2 border-b border-white/50 flex items-center gap-3">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-wider shrink-0">Ốc đây nè</span>
+          <span className="text-gray-300 text-sm">·</span>
+          <span className="text-xl font-extrabold text-gray-900 tracking-tight">Bàn {tableNumber}</span>
+          {existingBill && !loadingExistingBill && (
+            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+              Đã có đơn
+            </span>
+          )}
         </div>
 
         {/* ── Category tabs (scrollspy underline style) ── */}
@@ -592,22 +591,27 @@ const CustomerOrder = () => {
       </div>
 
       {/* ── Floating cart button ── */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-white/40 z-20 flex justify-center">
+      <div className="fixed bottom-0 left-0 right-0 px-4 py-2.5 bg-white/80 backdrop-blur-md border-t border-white/40 z-20 flex justify-center">
         <button
           onClick={handleSubmitClick}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-10 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 shadow-lg active:scale-[0.98] min-w-[200px]"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-8 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 shadow-lg active:scale-[0.98] min-w-[200px]"
         >
           {summary.totalItems === 0 ? (
-            <span className="text-base font-semibold">Xem hóa đơn</span>
+            <>
+              <ShoppingCart size={17} />
+              <span className="text-sm font-semibold">Xem hóa đơn</span>
+            </>
           ) : (
             <>
+              <ShoppingCart size={17} />
+              <span className="text-sm font-semibold">Đặt</span>
               <span
                 key={summary.totalItems}
-                className="animate-bump bg-white/20 rounded-xl px-2.5 py-1 text-sm font-bold"
+                className="animate-bump bg-white/20 rounded-lg px-2 py-0.5 text-sm font-bold"
               >
                 {summary.totalItems}
               </span>
-              <span className="text-base font-semibold">món đã chọn</span>
+              <span className="text-sm font-semibold">món</span>
             </>
           )}
         </button>

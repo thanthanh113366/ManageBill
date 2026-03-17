@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, 
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat, RotateCcw } from 'lucide-react';
+import CustomerPageModal from '../components/CustomerPageModal';
 import { toast } from 'react-toastify';
 import EditBill from '../components/EditBill';
 import KitchenManagement from '../components/KitchenManagement';
@@ -58,6 +59,9 @@ const BillManagement = () => {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
   };
+
+  const getBillLabel = (bill) =>
+    bill?.isTakeaway ? `Mang về ${bill.takeawayNumber}` : `Bàn ${bill.tableNumber}`;
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
@@ -119,7 +123,7 @@ const BillManagement = () => {
           Xác nhận thanh toán đơn hàng #{bill.id.slice(-6)}?
         </p>
         <p className="text-sm text-gray-600 mb-3">
-          Bàn {bill.tableNumber} - {formatCurrency(bill.totalRevenue)}
+          {getBillLabel(bill)} - {formatCurrency(bill.totalRevenue)}
         </p>
         <div className="flex gap-2">
           <button
@@ -167,7 +171,7 @@ const BillManagement = () => {
       <div>
         <p className="font-medium mb-1">Hoàn tác thanh toán đơn #{bill.id.slice(-6)}?</p>
         <p className="text-sm text-gray-600 mb-3">
-          Bàn {bill.tableNumber} – {new Intl.NumberFormat('vi-VN').format(bill.totalRevenue)} ₫
+          {getBillLabel(bill)} – {new Intl.NumberFormat('vi-VN').format(bill.totalRevenue)} ₫
         </p>
         <div className="flex gap-2">
           <button onClick={doUndo} className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700">
@@ -215,36 +219,35 @@ const BillManagement = () => {
           }
           // Handle order items linked to parent menu item
           else if (item.orderItemId) {
-            // We only display the parent menu item in details
-            // We need access to orderItems; fetch on demand
-            // Import firestore inside function to avoid top-level changes
             try {
-              const { getDocs, collection } = await import('firebase/firestore');
+              const { getDoc, doc } = await import('firebase/firestore');
               const { db } = await import('../config/firebase');
-              const snapshot = await getDocs(collection(db, 'orderItems'));
-              const orderItemDoc = snapshot.docs.find(d => d.id === item.orderItemId);
-              const orderItem = orderItemDoc ? { id: orderItemDoc.id, ...orderItemDoc.data() } : null;
+              const orderItemDoc = await getDoc(doc(db, 'orderItems', item.orderItemId));
+              const orderItem = orderItemDoc.exists() ? { id: orderItemDoc.id, ...orderItemDoc.data() } : null;
               const parent = orderItem?.parentMenuItemId ? menuItems.find(m => m.id === orderItem.parentMenuItemId) : null;
-              if (parent) {
-                const itemRevenue = parent.price * item.quantity;
-                const taxAmount = itemRevenue * ((parent.tax || 0) / 100);
-                const profitPerItem = parent.price - (parent.costPrice || 0) - (parent.fixedCost || 0) - taxAmount;
+
+              if (orderItem) {
+                // Dùng tên từ orderItem, giá từ parent (nếu có) hoặc orderItem.price
+                const priceRef = parent || { price: orderItem.price ?? 0, tax: 0, costPrice: 0, fixedCost: 0 };
+                const itemRevenue = priceRef.price * item.quantity;
+                const taxAmount = itemRevenue * ((priceRef.tax || 0) / 100);
+                const profitPerItem = priceRef.price - (priceRef.costPrice || 0) - (priceRef.fixedCost || 0) - taxAmount;
                 const itemProfit = profitPerItem * item.quantity;
                 return {
                   ...item,
-                  menuItem: parent,
+                  menuItem: { ...priceRef, name: orderItem.name },
                   itemRevenue,
                   itemProfit,
                   taxAmount,
                   type: 'menu'
                 };
-              } else if (orderItem) {
-                // Standalone item (e.g., Lai rai) – show its own name with default price
-                const price = 25000;
+              } else {
+                // orderItem không tìm thấy — fallback
+                const price = 0;
                 const itemRevenue = price * item.quantity;
                 return {
                   ...item,
-                  menuItem: { id: `standalone-${orderItem.id}`, name: orderItem.name, price, tax: 0 },
+                  menuItem: { id: `unknown-${item.orderItemId}`, name: 'Món không xác định', price, tax: 0 },
                   itemRevenue,
                   itemProfit: itemRevenue,
                   taxAmount: 0,
@@ -323,17 +326,25 @@ const BillManagement = () => {
     setShowPublicBillModal(false);
   };
 
+
   const getActiveTables = () => {
-    // Get tables that have active bills for today
+    // Chỉ lấy bàn thật trong stat card (loại ảo 9000+)
     const activeTables = new Set();
-    bills.filter(bill => bill.status === 'pending').forEach(bill => {
-      if (Number(bill.tableNumber) > 0) {
-        activeTables.add(bill.tableNumber);
-      }
+    bills.filter(bill => bill.status === 'pending' && !bill.isTakeaway).forEach(bill => {
+      if (Number(bill.tableNumber) > 0) activeTables.add(bill.tableNumber);
     });
-    
     return Array.from(activeTables).sort((a, b) => a - b);
   };
+
+  const getActiveBills = () =>
+    bills
+      .filter(bill => bill.status === 'pending')
+      .sort((a, b) => {
+        // Bàn thật trước, mang về sau; cùng loại thì sort theo số
+        if (a.isTakeaway !== b.isTakeaway) return a.isTakeaway ? 1 : -1;
+        return (a.isTakeaway ? a.takeawayNumber : a.tableNumber) -
+               (b.isTakeaway ? b.takeawayNumber : b.tableNumber);
+      });
 
   if (loading) {
     return (
@@ -429,11 +440,13 @@ const BillManagement = () => {
                           <p className="text-sm font-medium text-gray-900">
                             Đơn hàng #{bill.id.slice(-6)}
                           </p>
-                          {Number(bill.tableNumber) > 0 && (
-                            <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">
-                              Bàn {bill.tableNumber}
-                            </span>
-                          )}
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            bill.isTakeaway
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {getBillLabel(bill)}
+                          </span>
                           {bill.status === 'paid' ? (
                             <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
                               ✓ Đã thanh toán
@@ -704,101 +717,12 @@ const BillManagement = () => {
 
       {/* Public Bill Modal */}
       {showPublicBillModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Mở trang khách hàng
-              </h3>
-              <button
-                onClick={() => setShowPublicBillModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <FileText size={20} />
-              </button>
-            </div>
-            
-            {/* Modal Body */}
-            <div className="p-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Chọn bàn để mở trang xem hóa đơn cho khách hàng:
-              </p>
-              
-              {/* Active Tables */}
-              {getActiveTables().length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">
-                    Bàn có đơn hàng chưa thanh toán:
-                  </h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {getActiveTables().map((tableNumber) => (
-                      <button
-                        key={tableNumber}
-                        onClick={() => handleOpenPublicBill(tableNumber)}
-                        className="w-full text-left p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 hover:border-green-300 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              Bàn {tableNumber}
-                            </div>
-                            <div className="text-sm text-green-600">
-                              ● Có đơn hàng đang chờ
-                            </div>
-                          </div>
-                          <ExternalLink className="w-4 h-4 text-gray-400" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* All Tables */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-3">
-                  Tất cả bàn:
-                </h4>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {tables && tables.length > 0 ? tables.map((table) => (
-                    <button
-                      key={table.id}
-                      onClick={() => handleOpenPublicBill(table.number)}
-                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            Bàn {table.number}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {table.seats} chỗ ngồi
-                            {table.description && ` • ${table.description}`}
-                          </div>
-                        </div>
-                        <ExternalLink className="w-4 h-4 text-gray-400" />
-                      </div>
-                    </button>
-                  )) : (
-                    <p className="text-center text-gray-500 py-8">
-                      Chưa có bàn nào được thiết lập
-                    </p>
-                  )}
-                </div>
-              </div>
-              
-              {getActiveTables().length === 0 && (!tables || tables.length === 0) && (
-                <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">
-                    Không có bàn nào để hiển thị
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <CustomerPageModal
+          activeBills={getActiveBills()}
+          tables={tables || []}
+          onClose={() => setShowPublicBillModal(false)}
+          onSelect={handleOpenPublicBill}
+        />
       )}
 
       {/* Kitchen Management Modal */}

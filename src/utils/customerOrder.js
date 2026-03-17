@@ -323,3 +323,35 @@ export const submitCustomerOrder = async (tableNumber, items, totalRevenue, tota
   }
 };
 
+/**
+ * Tạo đơn hàng mang về — luôn tạo bill mới, đánh số thứ tự trong ngày.
+ * @returns {number} takeawayNumber — số thứ tự đơn mang về hôm nay (1, 2, 3...)
+ */
+export const createTakeawayOrder = async (items, totalRevenue, totalProfit, note = '') => {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Đếm số đơn mang về hôm nay để lấy số thứ tự tiếp theo
+  const snap = await getDocs(
+    query(collection(db, 'bills'), where('date', '==', today), where('isTakeaway', '==', true))
+  );
+  const takeawayNumber = snap.size + 1;
+
+  await addDoc(collection(db, 'bills'), {
+    createdAt: serverTimestamp(),
+    date: today,
+    tableNumber: 9000 + takeawayNumber, // virtual — tránh trùng bàn thật (1-9)
+    status: 'pending',
+    items,
+    totalRevenue,
+    totalProfit,
+    isTakeaway: true,
+    takeawayNumber,
+    ...(note?.trim() ? { note: note.trim() } : {}),
+  });
+
+  // Tạo menuItemTimings (non-blocking)
+  await createMenuItemTimingsForNewItems(items).catch(() => {});
+
+  return takeawayNumber;
+};
+

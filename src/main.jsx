@@ -16,6 +16,7 @@ import QRCodeManager from './pages/QRCodeManager';
 import PublicBill from './pages/PublicBill';
 import CustomerOrder from './pages/CustomerOrder';
 import OrderSuccess from './pages/OrderSuccess';
+import TakeawayOrder from './pages/TakeawayOrder';
 import { initVoiceOrderMetrics } from './utils/voiceOrderMetrics';
 
 import './index.css';
@@ -30,6 +31,7 @@ const PublicRoutes = () => {
       <Route path="/bill/:tableNumber" element={<PublicBill />} />
       <Route path="/order/:tableNumber" element={<CustomerOrder />} />
       <Route path="/order-success/:tableNumber" element={<OrderSuccess />} />
+      <Route path="/takeaway" element={<TakeawayOrder />} />
     </Routes>
   );
 };
@@ -62,7 +64,8 @@ const App = () => {
   
   // Check if current path is a public route
   if (currentPath.startsWith('/bill/') || 
-      currentPath.startsWith('/order')) {
+      currentPath.startsWith('/order') ||
+      currentPath.startsWith('/takeaway')) {
     return <PublicRoutes />;
   }
 

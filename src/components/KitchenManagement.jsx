@@ -24,7 +24,7 @@ const urgencyColor = (minutes) => {
 
 // ── Table Card ────────────────────────────────────────────────────────────────
 
-const TableCard = ({ tableNumber, items, now, onComplete, onUndo, note, bill, onPayBill, processingPayment }) => {
+const TableCard = ({ tableNumber, displayName, items, now, onComplete, onUndo, note, bill, onPayBill, processingPayment }) => {
   const pending   = items.filter(i => !i.isCompleted && i.kitchenStatus !== 'ready');
   const completed = items.filter(i =>  i.isCompleted || i.kitchenStatus === 'ready');
 
@@ -44,7 +44,7 @@ const TableCard = ({ tableNumber, items, now, onComplete, onUndo, note, bill, on
       {/* Header bàn */}
       <div className={`${headerColor} px-3 py-2 flex items-center justify-between shrink-0`}>
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-white font-bold text-base shrink-0">Bàn {tableNumber}</span>
+          <span className="text-white font-bold text-base shrink-0">{displayName || `Bàn ${tableNumber}`}</span>
           <span className="text-white/70 text-xs font-medium shrink-0">{maxWait}p</span>
         </div>
 
@@ -205,7 +205,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     filteredQueue.forEach(item => {
       const tn = item.tableNumber;
       if (!grouped[tn]) {
-        grouped[tn] = { tableNumber: tn, items: [], earliestTime: Infinity, note: '', bill: null };
+        grouped[tn] = { tableNumber: tn, items: [], earliestTime: Infinity, note: '', bill: null, displayName: '' };
       }
       grouped[tn].items.push(item);
       const t = item.createdAt?.toDate?.() || new Date(item.createdAt || 0);
@@ -216,7 +216,12 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
         if (bill) {
           if (!grouped[tn].note && bill.note?.trim()) grouped[tn].note = bill.note;
           // Ưu tiên bill pending (chờ thanh toán)
-          if (!grouped[tn].bill || bill.status === 'pending') grouped[tn].bill = bill;
+          if (!grouped[tn].bill || bill.status === 'pending') {
+            grouped[tn].bill = bill;
+            grouped[tn].displayName = bill.isTakeaway
+              ? `MV ${bill.takeawayNumber}`
+              : `Bàn ${tn}`;
+          }
         }
       }
     });
@@ -378,10 +383,11 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
           ) : (
             <div className="grid grid-cols-4 grid-rows-2 gap-3 h-full min-h-0"
                  style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
-              {tableCards.map(({ tableNumber, items, note, bill }) => (
+              {tableCards.map(({ tableNumber, displayName, items, note, bill }) => (
                 <TableCard
                   key={tableNumber}
                   tableNumber={tableNumber}
+                  displayName={displayName}
                   items={items}
                   now={now}
                   onComplete={handleComplete}

@@ -3,7 +3,8 @@ import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot 
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
-import { Plus, Minus, ShoppingCart, Calculator, ExternalLink, FileText } from 'lucide-react';
+import CustomerPageModal from '../components/CustomerPageModal';
+import { Plus, Minus, ShoppingCart, Calculator, ExternalLink } from 'lucide-react';
 import { VoiceOrderButton } from '../components/VoiceOrderButton';
 import { getVoiceOrderMetrics } from '../utils/voiceOrderMetrics';
 import CustomItemForm from '../components/CustomItemForm';
@@ -242,16 +243,23 @@ const CreateBill = () => {
   };
 
   const getActiveTables = () => {
-    // Get tables that have active bills for today
+    // Chỉ lấy bàn thật trong stat card (loại ảo 9000+)
     const activeTables = new Set();
-    bills.filter(bill => bill.status === 'pending').forEach(bill => {
-      if (bill.tableNumber) {
-        activeTables.add(bill.tableNumber);
-      }
+    bills.filter(bill => bill.status === 'pending' && !bill.isTakeaway).forEach(bill => {
+      if (bill.tableNumber) activeTables.add(bill.tableNumber);
     });
     
     return Array.from(activeTables).sort((a, b) => a - b);
   };
+
+  const getActiveBills = () =>
+    bills
+      .filter(bill => bill.status === 'pending')
+      .sort((a, b) => {
+        if (a.isTakeaway !== b.isTakeaway) return a.isTakeaway ? 1 : -1;
+        return (a.isTakeaway ? a.takeawayNumber : a.tableNumber) -
+               (b.isTakeaway ? b.takeawayNumber : b.tableNumber);
+      });
 
   // Filter menu items by category
   const filteredMenuItems = useMemo(() => {
@@ -497,101 +505,12 @@ const CreateBill = () => {
 
       {/* Customer Order Modal */}
       {showCustomerOrderModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Mở trang khách hàng
-              </h3>
-              <button
-                onClick={() => setShowCustomerOrderModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <FileText size={20} />
-              </button>
-            </div>
-            
-            {/* Modal Body */}
-            <div className="p-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Chọn bàn để mở trang xem hóa đơn cho khách hàng:
-              </p>
-              
-              {/* Active Tables */}
-              {getActiveTables().length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">
-                    Bàn có đơn hàng chưa thanh toán:
-                  </h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {getActiveTables().map((tableNumber) => (
-                      <button
-                        key={tableNumber}
-                        onClick={() => handleOpenPublicBill(tableNumber)}
-                        className="w-full text-left p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 hover:border-green-300 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              Bàn {tableNumber}
-                            </div>
-                            <div className="text-sm text-green-600">
-                              ● Có đơn hàng đang chờ
-                            </div>
-                          </div>
-                          <ExternalLink className="w-4 h-4 text-gray-400" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* All Tables */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-3">
-                  Tất cả bàn:
-                </h4>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {tables && tables.length > 0 ? tables.map((table) => (
-                    <button
-                      key={table.id}
-                      onClick={() => handleOpenPublicBill(table.number)}
-                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            Bàn {table.number}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {table.seats} chỗ ngồi
-                            {table.description && ` • ${table.description}`}
-                          </div>
-                        </div>
-                        <ExternalLink className="w-4 h-4 text-gray-400" />
-                      </div>
-                    </button>
-                  )) : (
-                    <p className="text-center text-gray-500 py-8">
-                      Chưa có bàn nào được thiết lập
-                    </p>
-                  )}
-                </div>
-              </div>
-              
-              {getActiveTables().length === 0 && (!tables || tables.length === 0) && (
-                <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">
-                    Không có bàn nào để hiển thị
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <CustomerPageModal
+          activeBills={getActiveBills()}
+          tables={tables || []}
+          onClose={() => setShowCustomerOrderModal(false)}
+          onSelect={handleOpenPublicBill}
+        />
       )}
     </div>
   );

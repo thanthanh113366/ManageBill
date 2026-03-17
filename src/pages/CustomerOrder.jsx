@@ -19,28 +19,17 @@ const formatCurrency = (amount) =>
   new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
 
 // ──────────────────────────────────────────────
-// Skeleton card
+// Skeleton card (grid 2-col)
 // ──────────────────────────────────────────────
 const SkeletonCard = () => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-pulse">
-    <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-      <div className="h-4 w-1/3 bg-gray-200 rounded" />
-    </div>
-    <div className="p-4 space-y-3">
-      {[1, 2].map((i) => (
-        <div key={i} className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-200 rounded-xl" />
-            <div className="space-y-2">
-              <div className="h-3 w-24 bg-gray-200 rounded" />
-              <div className="h-3 w-16 bg-gray-200 rounded" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gray-200 rounded-full" />
-            <div className="w-6 h-4 bg-gray-200 rounded" />
-            <div className="w-8 h-8 bg-gray-200 rounded-full" />
-          </div>
+  <div className="space-y-5 animate-pulse">
+    <div className="h-4 w-1/4 bg-gray-200 rounded" />
+    <div className="grid grid-cols-2 gap-3">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="space-y-2">
+          <div className="aspect-square bg-gray-200 rounded-2xl" />
+          <div className="h-3 w-3/4 bg-gray-200 rounded" />
+          <div className="h-3 w-1/2 bg-gray-200 rounded" />
         </div>
       ))}
     </div>
@@ -408,12 +397,13 @@ const CustomerOrder = () => {
         )}
 
         {/* ── Tất cả categories theo section ── */}
-        {!isLoading && groupedByCategory.map(({ cat, groups }) => (
+        {!isLoading && groupedByCategory.map(({ cat, groups }, sectionIndex) => (
           <section
             key={cat.value}
             ref={(el) => { sectionRefs.current[cat.value] = el; }}
             data-category={cat.value}
-            className="pt-4"
+            className="pt-4 animate-fade-slide-up"
+            style={{ animationDelay: `${sectionIndex * 60}ms` }}
           >
             {/* Section header */}
             <div className="flex items-center gap-3 mb-3">
@@ -422,20 +412,18 @@ const CustomerOrder = () => {
             </div>
 
             {/* Groups */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {groups.map((group) => (
-                <div
-                  key={group.parent.id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
-                >
-                  {/* Group header (chỉ hiển thị nếu không phải standalone) */}
+                <div key={group.parent.id}>
+                  {/* Group label (chỉ hiển thị nếu không phải standalone) */}
                   {!group.parent.isStandalone && (
-                    <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
-                      <h3 className="font-semibold text-gray-800 text-sm">{group.parent.name}</h3>
-                    </div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-0.5">
+                      {group.parent.name}
+                    </p>
                   )}
 
-                  <div className="divide-y divide-gray-50">
+                  {/* Grid 2 cột */}
+                  <div className="grid grid-cols-2 gap-3">
                     {group.items.map((oi) => {
                       const qty = quantities[oi.id] || 0;
                       const pm = group.parent.isStandalone ? null : menuItems.find((m) => m.id === oi.parentMenuItemId);
@@ -444,46 +432,62 @@ const CustomerOrder = () => {
                       return (
                         <div
                           key={oi.id}
-                          className={`flex items-center gap-3 px-4 py-3 transition-colors ${qty > 0 ? 'bg-indigo-50/40' : ''}`}
+                          onClick={() => handleQuantityChange(oi.id, 1)}
+                          className={`relative bg-white rounded-2xl overflow-hidden shadow-sm cursor-pointer select-none
+                            active:scale-[0.96] transition-transform duration-100
+                            ${qty > 0 ? 'ring-2 ring-indigo-400 ring-offset-1' : ''}`}
                         >
-                          {/* Image */}
-                          {oi.imageUrl ? (
-                            <img
-                              src={oi.imageUrl} alt={oi.name}
-                              className="w-12 h-12 object-cover rounded-xl flex-shrink-0"
-                              onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 text-xl">🍽️</div>
-                          )}
+                          {/* Image area */}
+                          <div className="relative">
+                            {oi.imageUrl ? (
+                              <img
+                                src={oi.imageUrl} alt={oi.name}
+                                className="w-full aspect-square object-cover"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-3xl">🍽️</div>
+                            )}
 
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 text-sm leading-tight">{oi.name}</p>
-                            {totals.valid
-                              ? <p className="text-indigo-600 font-bold text-sm mt-0.5">{formatCurrency(totals.price)}</p>
-                              : <p className="text-amber-500 text-xs mt-0.5">Liên hệ nhân viên</p>
-                            }
+                            {/* Quantity badge — góc trên trái */}
+                            {qty > 0 && (
+                              <span
+                                key={qty}
+                                className="absolute top-2 left-2 bg-indigo-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center animate-badge-pop shadow-md z-10"
+                              >
+                                {qty}
+                              </span>
+                            )}
+
+                            {/* Controls — góc dưới phải ảnh */}
+                            <div
+                              className="absolute bottom-2 right-2 flex items-center gap-1 z-10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {qty > 0 && (
+                                <button
+                                  onClick={() => handleQuantityChange(oi.id, -1)}
+                                  className="w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center animate-slide-in-right active:scale-90 transition-colors hover:bg-gray-50"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleQuantityChange(oi.id, 1)}
+                                className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-md active:scale-90 transition-colors"
+                              >
+                                <Plus size={12} />
+                              </button>
+                            </div>
                           </div>
 
-                          {/* Quantity controls */}
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => handleQuantityChange(oi.id, -1)}
-                              disabled={qty === 0}
-                              className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30 flex items-center justify-center transition-colors active:scale-90"
-                            >
-                              <Minus size={14} />
-                            </button>
-                            <span className={`w-6 text-center text-sm font-bold ${qty > 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                              {qty}
-                            </span>
-                            <button
-                              onClick={() => handleQuantityChange(oi.id, 1)}
-                              className="w-8 h-8 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-sm transition-colors active:scale-90"
-                            >
-                              <Plus size={14} />
-                            </button>
+                          {/* Info */}
+                          <div className="p-2.5">
+                            <p className="font-bold text-gray-900 text-sm leading-snug line-clamp-2">{oi.name}</p>
+                            {totals.valid
+                              ? <p className="text-xs text-gray-400 mt-0.5">{formatCurrency(totals.price)}</p>
+                              : <p className="text-amber-500 text-xs mt-0.5">Liên hệ nhân viên</p>
+                            }
                           </div>
                         </div>
                       );
@@ -532,14 +536,19 @@ const CustomerOrder = () => {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-sm border-t border-gray-100 z-20">
         <button
           onClick={handleSubmitClick}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-between px-5 transition-colors shadow-lg active:scale-[0.98]"
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-between px-5 transition-all duration-200 shadow-lg active:scale-[0.98]"
         >
           {summary.totalItems === 0 ? (
             <span className="mx-auto text-base font-semibold">Xem hóa đơn</span>
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <span className="bg-white/20 rounded-xl px-2.5 py-1 text-sm font-bold">{summary.totalItems}</span>
+                <span
+                  key={summary.totalItems}
+                  className="animate-bump bg-white/20 rounded-xl px-2.5 py-1 text-sm font-bold"
+                >
+                  {summary.totalItems}
+                </span>
                 <span>món đã chọn</span>
               </div>
               <span className="font-extrabold text-lg">{formatCurrency(summary.totalRevenue)}</span>

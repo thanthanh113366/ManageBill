@@ -64,7 +64,7 @@ export const calculateEstimatedTime = (item, timing) => {
  * @param {Array} orderItems - Danh sách order items (FALLBACK SOURCE)
  * @returns {Array} - Danh sách món đã sắp xếp theo ưu tiên
  */
-export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) => {
+export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = [], menuItems = []) => {
   const currentTime = new Date();
 
   // Map timing từ menuItemTimings (nguồn chính, do admin customize)
@@ -74,10 +74,16 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
     if (timing.orderItemId) timingMap.set(timing.orderItemId, timing);
   });
   
-  // Tạo map để lookup thông tin món từ orderItems (primary source)
+  // Map orderItems để lookup nhanh theo ID
   const orderItemsMap = new Map();
   orderItems.forEach(item => {
     orderItemsMap.set(item.id, item);
+  });
+
+  // Map menuItems để lookup tên theo menuItemId (tránh find() non-deterministic)
+  const menuItemsMap = new Map();
+  menuItems.forEach(mi => {
+    menuItemsMap.set(mi.id, mi);
   });
   
   // Flatten tất cả items từ bills và thêm thông tin cần thiết
@@ -88,13 +94,14 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
         return bill.items
           .filter(item => Boolean(item)) // bỏ qua item null/undefined
           .flatMap(item => {
-          // Tìm orderItem: thử orderItemId trước, sau đó thử menuItemId
-          let orderItem = orderItemsMap.get(item.orderItemId);
-          if (!orderItem && item.menuItemId) {
-            // Nếu không tìm thấy bằng orderItemId, tìm bằng menuItemId
-            // Cần tìm orderItem có parentMenuItemId = item.menuItemId
-            orderItem = Array.from(orderItemsMap.values()).find(oi => oi.parentMenuItemId === item.menuItemId);
-          }
+          // Tìm orderItem theo orderItemId (deterministic)
+          const orderItem = orderItemsMap.get(item.orderItemId);
+
+          // Tên fallback cho items cũ dùng menuItemId:
+          // dùng menuItemsMap thay vì find() trên orderItems (non-deterministic)
+          const menuItemName = item.menuItemId
+            ? menuItemsMap.get(item.menuItemId)?.name
+            : null;
           
           // ✅ FIXED: Ưu tiên menuItemTimings (có thể được admin customize) trước orderItems
           let timing = null;
@@ -150,9 +157,10 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
 
           // Thêm món đã hoàn thành (hiển thị với status "ready")
           for (let i = 0; i < completedCount; i++) {
-            const itemName = orderItem?.name || 
-                           item.name || 
-                           timing?.name || 
+            const itemName = orderItem?.name ||
+                           menuItemName ||
+                           item.name ||
+                           timing?.name ||
                            `Món ID: ${item.orderItemId || item.menuItemId}`;
             
             result.push({
@@ -183,9 +191,10 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
           
           // Thêm món chưa hoàn thành (hiển thị với status "cooking")
           for (let i = 0; i < remainingQuantity; i++) {
-            const itemName = orderItem?.name || 
-                           item.name || 
-                           timing?.name || 
+            const itemName = orderItem?.name ||
+                           menuItemName ||
+                           item.name ||
+                           timing?.name ||
                            `Món ID: ${item.orderItemId || item.menuItemId}`;
             
             result.push({

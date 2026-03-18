@@ -9,7 +9,7 @@ import EditBill from '../components/EditBill';
 import KitchenManagement from '../components/KitchenManagement';
 
 const BillManagement = () => {
-  const { menuItems, tables } = useApp();
+  const { menuItems, orderItems, tables } = useApp();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -291,12 +291,18 @@ const BillManagement = () => {
     
     bills.forEach(bill => {
       bill.items.forEach(item => {
+        let menuItem = null;
         if (item.menuItemId) {
-          const menuItem = menuItems.find(m => m.id === item.menuItemId);
-          if (menuItem) {
-            totalCostPrice += (menuItem.costPrice || 0) * item.quantity;
-            totalFixedCost += (menuItem.fixedCost || 0) * item.quantity;
+          menuItem = menuItems.find(m => m.id === item.menuItemId);
+        } else if (item.orderItemId) {
+          const oi = orderItems.find(o => o.id === item.orderItemId);
+          if (oi?.parentMenuItemId) {
+            menuItem = menuItems.find(m => m.id === oi.parentMenuItemId);
           }
+        }
+        if (menuItem) {
+          totalCostPrice += (menuItem.costPrice || 0) * item.quantity;
+          totalFixedCost += (menuItem.fixedCost || 0) * item.quantity;
         }
       });
     });

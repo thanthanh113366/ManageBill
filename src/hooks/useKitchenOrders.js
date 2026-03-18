@@ -8,7 +8,7 @@ import { calculateKitchenQueue, filterByTable, calculateKitchenStats } from '../
  * Custom hook để quản lý đơn hàng bếp real-time
  */
 export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
-  const { tables } = useApp();
+  const { tables, menuItems } = useApp();
   const [bills, setBills] = useState([]);
   const [menuTimings, setMenuTimings] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
@@ -104,7 +104,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
   useEffect(() => {
     if (!loading && orderItems.length >= 0) {
       try {
-        const queue = calculateKitchenQueue(bills, menuTimings, orderItems);
+        const queue = calculateKitchenQueue(bills, menuTimings, orderItems, menuItems);
         setKitchenQueue(queue);
 
         const filtered = filterByTable(queue, selectedTable);
@@ -117,7 +117,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
         setError('Lỗi tính toán danh sách món');
       }
     }
-  }, [bills, menuTimings, orderItems, selectedTable, loading]);
+  }, [bills, menuTimings, orderItems, menuItems, selectedTable, loading]);
 
   /**
    * Bắt đầu làm món

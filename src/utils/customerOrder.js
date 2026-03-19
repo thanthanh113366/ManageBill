@@ -203,11 +203,13 @@ const mergeItems = (existingItems, newItems) => {
     const idx = result.findIndex(i => (i.orderItemId || i.menuItemId) === newKey);
 
     if (idx >= 0) {
-      // Món đã có — tăng số lượng và đánh dấu thêm mới
+      // Món đã có — tăng số lượng, đánh dấu thêm mới, xóa kitchenStatus cũ
+      // để bếp biết có thêm phần mới cần làm (tránh bug "tự nhảy thành đã làm")
       result[idx] = {
         ...result[idx],
         quantity: result[idx].quantity + newItem.quantity,
         addedAt,
+        kitchenStatus: 'cooking', // reset về cooking vì có phần mới chưa làm
       };
     } else {
       // Món hoàn toàn mới — thêm vào cuối với addedAt

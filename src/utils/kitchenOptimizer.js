@@ -64,13 +64,12 @@ export const calculateEstimatedTime = (item, timing) => {
  * @param {Array} orderItems - Danh sách order items (FALLBACK SOURCE)
  * @returns {Array} - Danh sách món đã sắp xếp theo ưu tiên
  */
-export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = [], menuItems = []) => {
+export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) => {
   const currentTime = new Date();
 
-  // Map timing từ menuItemTimings (nguồn chính, do admin customize)
+  // Map timing từ menuItemTimings (nguồn chính, do admin customize) — chỉ dùng orderItemId
   const timingMap = new Map();
   menuTimings.forEach(timing => {
-    if (timing.menuItemId) timingMap.set(timing.menuItemId, timing);
     if (timing.orderItemId) timingMap.set(timing.orderItemId, timing);
   });
   
@@ -78,12 +77,6 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = [], 
   const orderItemsMap = new Map();
   orderItems.forEach(item => {
     orderItemsMap.set(item.id, item);
-  });
-
-  // Map menuItems để lookup tên theo menuItemId (tránh find() non-deterministic)
-  const menuItemsMap = new Map();
-  menuItems.forEach(mi => {
-    menuItemsMap.set(mi.id, mi);
   });
   
   // Flatten tất cả items từ bills và thêm thông tin cần thiết
@@ -94,74 +87,36 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = [], 
         return bill.items
           .filter(item => Boolean(item)) // bỏ qua item null/undefined
           .flatMap(item => {
-          // Tìm orderItem theo orderItemId (deterministic)
+          // Tìm orderItem theo orderItemId
           const orderItem = orderItemsMap.get(item.orderItemId);
 
-          // Tên fallback cho items cũ dùng menuItemId:
-          // dùng menuItemsMap thay vì find() trên orderItems (non-deterministic)
-          const menuItemName = item.menuItemId
-            ? menuItemsMap.get(item.menuItemId)?.name
+          // Tìm timing: ưu tiên menuItemTimings (admin customize), fallback sang orderItem
+          const menuTiming = timingMap.get(item.orderItemId);
+          const timing = menuTiming
+            ? {
+                speed: menuTiming.speed || 'medium',
+                kitchenType: menuTiming.kitchenType || 'cook',
+                priority: menuTiming.priority || 1,
+              }
+            : orderItem
+            ? {
+                speed: orderItem.speed || 'medium',
+                kitchenType: orderItem.kitchenType || 'cook',
+                priority: orderItem.priority || 1,
+              }
             : null;
-          
-          // ✅ FIXED: Ưu tiên menuItemTimings (có thể được admin customize) trước orderItems
-          let timing = null;
-          let timingSource = 'none';
-          
-          // 1. PRIMARY: Tìm trong menuItemTimings TRƯỚC (có thể được admin customize)
-          const menuTiming = timingMap.get(item.orderItemId) || timingMap.get(item.menuItemId);
-          if (menuTiming) {
-            timing = {
-              speed: menuTiming.speed || 'medium',
-              kitchenType: menuTiming.kitchenType || 'cook',
-              priority: menuTiming.priority || 1,
-              name: menuTiming.name
-            };
-            timingSource = 'menuItemTimings';
-          }
-          
-          // 2. FALLBACK: Nếu không có menuTiming, dùng orderItem
-          if (!timing && orderItem) {
-            timing = {
-              speed: orderItem.speed || 'medium',
-              kitchenType: orderItem.kitchenType || 'cook',
-              priority: orderItem.priority || 1,
-              name: orderItem.name
-            };
-            timingSource = 'orderItem';
-          }
           
           const quantity = item.quantity || 1;
           const completedCount = item.completedCount || 0;
           
-          // Debug log (có thể bật lại khi cần debug)
-          // console.log(`Debug item name:`, {
-          //   orderItemId: item.orderItemId,
-          //   menuItemId: item.menuItemId,
-          //   orderItemFound: !!orderItem,
-          //   orderItemName: orderItem?.name,
-          //   itemName: item.name,
-          //   timingName: timing?.name,
-          //   finalName: orderItem?.name || item.name || timing?.name || `Món ID: ${item.orderItemId || item.menuItemId}`
-          // });
-          
-          // Tách món có số lượng nhiều thành nhiều món riêng biệt
-          // Hiển thị tất cả món (kể cả đã hoàn thành)
-          const totalQuantity = quantity; // Hiển thị tất cả
           const remainingQuantity = Math.max(0, quantity - completedCount);
-          
           const result = [];
-          // Món được gọi thêm (sau lần đặt đầu tiên) có trường addedAt
           const isAdded = !!item.addedAt;
-          // Dùng addedAt của item nếu có, fallback về thời gian tạo bill
           const itemCreatedAt = item.addedAt ? new Date(item.addedAt) : bill.createdAt;
+          const itemName = orderItem?.name || item.name || `Món ID: ${item.orderItemId}`;
 
           // Thêm món đã hoàn thành (hiển thị với status "ready")
           for (let i = 0; i < completedCount; i++) {
-            const itemName = orderItem?.name ||
-                           menuItemName ||
-                           item.name ||
-                           timing?.name ||
-                           `Món ID: ${item.orderItemId || item.menuItemId}`;
             
             result.push({
               ...item,
@@ -191,11 +146,6 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = [], 
           
           // Thêm món chưa hoàn thành (hiển thị với status "cooking")
           for (let i = 0; i < remainingQuantity; i++) {
-            const itemName = orderItem?.name ||
-                           menuItemName ||
-                           item.name ||
-                           timing?.name ||
-                           `Món ID: ${item.orderItemId || item.menuItemId}`;
             
             result.push({
               ...item,
@@ -204,7 +154,7 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = [], 
               billOrder: bill.billOrder || 999,
               createdAt: itemCreatedAt,
               timing: timing,
-              kitchenStatus: item.kitchenStatus || 'cooking',
+              kitchenStatus: 'cooking', // luôn là cooking — không kế thừa trạng thái cũ khi món được thêm sau
               name: itemName,
               quantity: 1,
               batchOrder: completedCount + i + 1,

@@ -8,7 +8,7 @@ import { calculateKitchenQueue, filterByTable, calculateKitchenStats } from '../
  * Custom hook để quản lý đơn hàng bếp real-time
  */
 export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
-  const { tables, menuItems } = useApp();
+  const { tables } = useApp();
   const [bills, setBills] = useState([]);
   const [menuTimings, setMenuTimings] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
@@ -104,7 +104,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
   useEffect(() => {
     if (!loading && orderItems.length >= 0) {
       try {
-        const queue = calculateKitchenQueue(bills, menuTimings, orderItems, menuItems);
+        const queue = calculateKitchenQueue(bills, menuTimings, orderItems);
         setKitchenQueue(queue);
 
         const filtered = filterByTable(queue, selectedTable);
@@ -117,7 +117,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
         setError('Lỗi tính toán danh sách món');
       }
     }
-  }, [bills, menuTimings, orderItems, menuItems, selectedTable, loading]);
+  }, [bills, menuTimings, orderItems, selectedTable, loading]);
 
   /**
    * Bắt đầu làm món
@@ -132,7 +132,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
       const bill = bills.find(b => b.id === billId);
       if (bill) {
         const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId) {
+          if (item.orderItemId === orderItemId) {
             return {
               ...item,
               kitchenStatus: 'cooking',
@@ -166,7 +166,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
       const bill = bills.find(b => b.id === billId);
       if (bill) {
         const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId) {
+          if (item.orderItemId === orderItemId) {
             const completedCount = item.completedCount || 0;
             const newCompletedCount = Math.max(0, completedCount - 1);
             
@@ -206,7 +206,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
       const bill = bills.find(b => b.id === billId);
       if (bill) {
         const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId) {
+          if (item.orderItemId === orderItemId) {
             // Nếu chưa có completedCount, tạo mới
             const completedCount = item.completedCount || 0;
             const newCompletedCount = completedCount + 1;

@@ -132,7 +132,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
       const bill = bills.find(b => b.id === billId);
       if (bill) {
         const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId) {
+          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId || item.customDescription === orderItemId) {
             return {
               ...item,
               kitchenStatus: 'cooking',
@@ -166,7 +166,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
       const bill = bills.find(b => b.id === billId);
       if (bill) {
         const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId) {
+          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId || item.customDescription === orderItemId) {
             const completedCount = item.completedCount || 0;
             const newCompletedCount = Math.max(0, completedCount - 1);
             
@@ -206,7 +206,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
       const bill = bills.find(b => b.id === billId);
       if (bill) {
         const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId) {
+          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId || item.customDescription === orderItemId) {
             // Nếu chưa có completedCount, tạo mới
             const completedCount = item.completedCount || 0;
             const newCompletedCount = completedCount + 1;

@@ -87,6 +87,38 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
         return bill.items
           .filter(item => Boolean(item)) // bỏ qua item null/undefined
           .flatMap(item => {
+          // Custom item (món đặc biệt khách yêu cầu làm riêng, không có orderItemId/menuItemId)
+          if (item.customDescription) {
+            const quantity = item.quantity || 1;
+            const completedCount = item.completedCount || 0;
+            const remainingQuantity = Math.max(0, quantity - completedCount);
+            const itemCreatedAt = item.addedAt ? new Date(item.addedAt) : bill.createdAt;
+            const isAdded = !!item.addedAt;
+            const baseEntry = {
+              ...item,
+              billId: bill.id,
+              tableNumber: bill.tableNumber,
+              billOrder: bill.billOrder || 999,
+              createdAt: itemCreatedAt,
+              timing: null,
+              name: item.customDescription,
+              quantity: 1,
+              batchTotal: quantity,
+              originalQuantity: quantity,
+              isAdded,
+              estimatedTime: null,
+              score: calculateScore({ ...item, billOrder: bill.billOrder || 999, createdAt: itemCreatedAt, priority: 1, quantity: 1 }, currentTime),
+            };
+            return [
+              ...Array.from({ length: completedCount }, (_, i) => ({
+                ...baseEntry, kitchenStatus: 'ready', batchOrder: i + 1, isCompleted: true,
+              })),
+              ...Array.from({ length: remainingQuantity }, (_, i) => ({
+                ...baseEntry, kitchenStatus: 'cooking', batchOrder: completedCount + i + 1, isCompleted: false,
+              })),
+            ];
+          }
+
           // Tìm orderItem theo orderItemId
           const orderItem = orderItemsMap.get(item.orderItemId);
 

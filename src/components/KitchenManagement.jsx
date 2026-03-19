@@ -95,7 +95,7 @@ const TableCard = ({ tableNumber, displayName, items, now, onComplete, onUndo, n
         {/* Món chưa xong — bấm tên để hoàn thành */}
         {pending.map((item, idx) => (
           <button
-            key={`${item.billId}-${item.orderItemId}-${item.batchOrder ?? idx}`}
+            key={`${item.billId}-${item.orderItemId || item.menuItemId || item.customDescription}-${item.batchOrder ?? idx}`}
             onClick={() => onComplete(item)}
             className={`w-full text-left px-3 py-2 transition-colors group ${
               item.isAdded ? 'hover:bg-red-50' : 'hover:bg-indigo-50'
@@ -136,7 +136,7 @@ const TableCard = ({ tableNumber, displayName, items, now, onComplete, onUndo, n
         {/* Món đã xong — bấm để undo */}
         {completed.map((item, idx) => (
           <button
-            key={`done-${item.billId}-${item.orderItemId}-${item.batchOrder ?? idx}`}
+            key={`done-${item.billId}-${item.orderItemId || item.menuItemId || item.customDescription}-${item.batchOrder ?? idx}`}
             onClick={() => onUndo(item)}
             className="w-full text-left px-3 py-2 hover:bg-orange-50 transition-colors group"
           >
@@ -231,10 +231,10 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
   }, [filteredQueue, bills]);
 
   const handleComplete = (item) =>
-    completeCooking(item.billId, item.orderItemId, item.batchOrder);
+    completeCooking(item.billId, item.orderItemId || item.menuItemId || item.customDescription, item.batchOrder);
 
   const handleUndo = (item) =>
-    undoCompleted(item.billId, item.orderItemId);
+    undoCompleted(item.billId, item.orderItemId || item.menuItemId || item.customDescription);
 
   const handleMarkAsPaid = (bill) => {
     if (processingPayment === bill.id) return;

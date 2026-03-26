@@ -22,7 +22,7 @@ import {
 } from '../utils/dishAnalysis';
 
 const DishAnalysis = () => {
-  const { menuItems } = useApp();
+  const { menuItems, orderItems } = useApp();
   const [loading, setLoading] = useState(false);
   const [periodType, setPeriodType] = useState('all');
   const [startDate, setStartDate] = useState('');
@@ -43,7 +43,7 @@ const DishAnalysis = () => {
 
   // Load data when filters change
   useEffect(() => {
-    if (menuItems.length > 0) {
+    if (menuItems.length > 0 || orderItems.length > 0) {
       loadDishAnalysis();
     }
   }, [startDate, endDate, periodType, menuItems]);
@@ -75,7 +75,7 @@ const DishAnalysis = () => {
 
       // Calculate current period stats
       const dateRange = periodType === 'all' ? null : { startDate, endDate };
-      let currentStats = calculateDishStats(bills, menuItems, dateRange);
+      let currentStats = calculateDishStats(bills, menuItems, dateRange, orderItems);
 
       // Calculate trend if not "all" period
       if (periodType !== 'all' && startDate && endDate) {
@@ -96,7 +96,7 @@ const DishAnalysis = () => {
             ...doc.data()
           }));
           
-          const previousStats = calculateDishStats(prevBills, menuItems, previousPeriod);
+          const previousStats = calculateDishStats(prevBills, menuItems, previousPeriod, orderItems);
           currentStats = calculateTrend(currentStats, previousStats);
         }
       }

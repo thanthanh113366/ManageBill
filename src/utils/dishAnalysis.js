@@ -4,13 +4,57 @@
  */
 
 /**
+ * Resolve a bill item to its corresponding menuItem.
+ * - If item has menuItemId → look up directly in menuItems.
+ * - If item has orderItemId → look up in orderItems, then resolve via parentMenuItemId.
+ *   Standalone orderItems (no parentMenuItemId) use their own price/name/category
+ *   and are treated as a virtual menu entry with zero costPrice/fixedCost/tax.
+ *
+ * @param {object} item - Bill line item
+ * @param {Array} menuItems - Firestore menuItems
+ * @param {Array} orderItems - Firestore orderItems
+ * @returns {{ menuItem: object|null, resolvedKey: string|null }}
+ */
+const resolveMenuItemForBillLine = (item, menuItems, orderItems) => {
+  if (item.menuItemId) {
+    const menuItem = menuItems.find(m => m.id === item.menuItemId);
+    return { menuItem: menuItem || null, resolvedKey: item.menuItemId };
+  }
+
+  if (item.orderItemId) {
+    const orderItem = orderItems.find(o => o.id === item.orderItemId);
+    if (!orderItem) return { menuItem: null, resolvedKey: null };
+
+    if (orderItem.parentMenuItemId) {
+      const menuItem = menuItems.find(m => m.id === orderItem.parentMenuItemId);
+      return { menuItem: menuItem || null, resolvedKey: orderItem.parentMenuItemId };
+    }
+
+    // Standalone orderItem: build a virtual menu entry so it still appears in stats
+    const virtualMenuItem = {
+      id: orderItem.id,
+      name: orderItem.name,
+      category: orderItem.category || 'other',
+      price: orderItem.price || 0,
+      costPrice: 0,
+      fixedCost: 0,
+      tax: 0,
+    };
+    return { menuItem: virtualMenuItem, resolvedKey: `orderItem__${orderItem.id}` };
+  }
+
+  return { menuItem: null, resolvedKey: null };
+};
+
+/**
  * Calculate dish statistics from bills
  * @param {Array} bills - Array of bill documents
  * @param {Array} menuItems - Array of menu items
  * @param {Object} dateRange - Date range filter (startDate, endDate)
+ * @param {Array} orderItems - Array of order items (used for orderItemId mapping)
  * @returns {Array} Array of dish statistics
  */
-export const calculateDishStats = (bills, menuItems, dateRange = null) => {
+export const calculateDishStats = (bills, menuItems, dateRange = null, orderItems = []) => {
   // Filter bills by date range if provided
   let filteredBills = bills;
   if (dateRange && dateRange.startDate && dateRange.endDate) {
@@ -31,20 +75,20 @@ export const calculateDishStats = (bills, menuItems, dateRange = null) => {
 
     // Process each item in the bill
     bill.items.forEach(item => {
-      const menuItem = menuItems.find(m => m.id === item.menuItemId);
-      if (!menuItem) return; // Skip if menu item not found
+      const { menuItem, resolvedKey } = resolveMenuItemForBillLine(item, menuItems, orderItems);
+      if (!menuItem || !resolvedKey) return;
 
       const quantity = item.quantity || 0;
       const revenue = menuItem.price * quantity;
-      const costPrice = menuItem.costPrice * quantity;
-      const fixedCost = menuItem.fixedCost * quantity;
-      const tax = (menuItem.price * menuItem.tax / 100) * quantity;
+      const costPrice = (menuItem.costPrice || 0) * quantity;
+      const fixedCost = (menuItem.fixedCost || 0) * quantity;
+      const tax = (menuItem.price * (menuItem.tax || 0) / 100) * quantity;
       const profit = revenue - costPrice - fixedCost - tax;
 
       // Get or create stats for this dish
-      if (!dishStatsMap.has(item.menuItemId)) {
-        dishStatsMap.set(item.menuItemId, {
-          dishId: item.menuItemId,
+      if (!dishStatsMap.has(resolvedKey)) {
+        dishStatsMap.set(resolvedKey, {
+          dishId: resolvedKey,
           name: menuItem.name,
           category: menuItem.category,
           price: menuItem.price,
@@ -56,7 +100,7 @@ export const calculateDishStats = (bills, menuItems, dateRange = null) => {
         });
       }
 
-      const stats = dishStatsMap.get(item.menuItemId);
+      const stats = dishStatsMap.get(resolvedKey);
       stats.totalQuantity += quantity;
       stats.billIds.add(bill.id); // Track unique bill
       stats.totalRevenue += revenue;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat, RotateCcw } from 'lucide-react';
+import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat, RotateCcw, ArrowLeftRight, X } from 'lucide-react';
 import CustomerPageModal from '../components/CustomerPageModal';
 import { toast } from 'react-toastify';
 import EditBill from '../components/EditBill';
@@ -19,6 +19,7 @@ const BillManagement = () => {
   const [processingPayment, setProcessingPayment] = useState(null);
   const [showPublicBillModal, setShowPublicBillModal] = useState(false);
   const [showKitchenModal, setShowKitchenModal] = useState(false);
+  const [changingTableBill, setChangingTableBill] = useState(null);
 
   useEffect(() => {
     const q = query(
@@ -352,6 +353,38 @@ const BillManagement = () => {
                (b.isTakeaway ? b.takeawayNumber : b.tableNumber);
       });
 
+  // Bàn trống trong ngày đang chọn (không có pending bill, không phải takeaway ảo)
+  const getEmptyTablesForChange = () => {
+    const occupiedTableNumbers = new Set(
+      bills
+        .filter(b => b.status === 'pending' && !b.isTakeaway)
+        .map(b => String(b.tableNumber))
+    );
+    return (tables || []).filter(
+      t => !occupiedTableNumbers.has(String(t.number))
+    );
+  };
+
+  const handleOpenChangeTable = (bill) => {
+    setChangingTableBill(bill);
+  };
+
+  const handleConfirmChangeTable = async (targetTableNumber) => {
+    if (!changingTableBill) return;
+    const fromLabel = getBillLabel(changingTableBill);
+    try {
+      await updateDoc(doc(db, 'bills', changingTableBill.id), {
+        tableNumber: parseInt(targetTableNumber),
+        updatedAt: serverTimestamp()
+      });
+      toast.success(`Đã đổi ${fromLabel} → Bàn ${targetTableNumber}`, { autoClose: 2500 });
+      setChangingTableBill(null);
+    } catch (error) {
+      console.error('Lỗi khi đổi bàn:', error);
+      toast.error('Có lỗi khi đổi bàn. Vui lòng thử lại.', { autoClose: 3000 });
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto">
@@ -520,6 +553,16 @@ const BillManagement = () => {
                             <RotateCcw size={16} />
                           )}
                           <span className="hidden sm:inline">Hoàn tác</span>
+                        </button>
+                      )}
+                      {bill.status === 'pending' && !bill.isTakeaway && (
+                        <button
+                          onClick={() => handleOpenChangeTable(bill)}
+                          className="flex items-center gap-1 px-3 py-2 text-sm text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-md border border-purple-200 transition-colors"
+                          title="Đổi bàn"
+                        >
+                          <ArrowLeftRight size={16} />
+                          <span className="hidden sm:inline">Đổi bàn</span>
                         </button>
                       )}
                       <button
@@ -737,6 +780,67 @@ const BillManagement = () => {
           onClose={() => setShowKitchenModal(false)} 
           selectedDate={selectedDate}
         />
+      )}
+
+      {/* Modal Đổi Bàn */}
+      {changingTableBill && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-sm w-full max-h-[80vh] overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <ArrowLeftRight size={18} className="text-purple-500" />
+                  Đổi bàn
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {getBillLabel(changingTableBill)} → chọn bàn trống
+                </p>
+              </div>
+              <button
+                onClick={() => setChangingTableBill(null)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {getEmptyTablesForChange().length > 0 ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Chọn bàn trống để chuyển hóa đơn sang:
+                  </p>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {getEmptyTablesForChange().map((table) => (
+                      <button
+                        key={table.id}
+                        onClick={() => handleConfirmChangeTable(table.number)}
+                        className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              Bàn {table.number}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {table.seats} chỗ ngồi
+                              {table.description && ` • ${table.description}`}
+                            </div>
+                          </div>
+                          <ChevronDown className="w-4 h-4 text-purple-400 transform -rotate-90" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-gray-500 py-8">
+                  Hiện không có bàn trống để đổi
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

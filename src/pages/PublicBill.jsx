@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Clock, Receipt, CheckCircle, ArrowLeftRight, ChevronDown, X, UtensilsCrossed } from 'lucide-react';
 
@@ -15,6 +15,8 @@ const PublicBill = () => {
   const [tables, setTables] = useState([]);
   const [showTableSwitcher, setShowTableSwitcher] = useState(false);
   const [defaultQR, setDefaultQR] = useState('/my_qr_1.jpg');
+  const [allTodayPendingBills, setAllTodayPendingBills] = useState([]);
+  const [isMovingTable, setIsMovingTable] = useState(false);
 
   // Load default QR from localStorage
   useEffect(() => {
@@ -77,29 +79,22 @@ const PublicBill = () => {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      
+      const allBillsToday = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Lưu tất cả pending bills hôm nay để phát hiện bàn trống
+      setAllTodayPendingBills(
+        allBillsToday.filter(b => !b.status || b.status === 'pending')
+      );
+
       // Filter manually để hỗ trợ cả string và number
-      const bills = snapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data
-          };
-        })
-        .filter(bill => {
+      const bills = allBillsToday.filter(bill => {
           // So sánh tableNumber: hỗ trợ cả string và number
           const billTableNumber = bill.tableNumber;
           const targetTableNumber = parseInt(tableNumber);
           
-          const match = billTableNumber === targetTableNumber || 
-                       billTableNumber === tableNumber ||
-                       String(billTableNumber) === String(targetTableNumber);
-          
-          if (match) {
-          }
-          
-          return match;
+          return billTableNumber === targetTableNumber || 
+                 billTableNumber === tableNumber ||
+                 String(billTableNumber) === String(targetTableNumber);
         });
       
       // Filter chỉ bills chưa thanh toán (hoặc chưa có status field)
@@ -240,15 +235,45 @@ const PublicBill = () => {
     return { subtotal, totalTax, total };
   };
 
-  // Handle table switching
+  // Xem hóa đơn bàn khác (chỉ điều hướng, không chuyển bill)
   const handleTableSwitch = (newTableNumber) => {
     navigate(`/bill/${newTableNumber}`);
     setShowTableSwitcher(false);
   };
 
-  // Get available tables (excluding current table)
+  // Lấy tất cả bàn khác (cho trường hợp chưa có bill - chỉ xem)
   const getAvailableTables = () => {
     return tables.filter(table => table.number.toString() !== tableNumber);
+  };
+
+  // Lấy danh sách bàn trống hôm nay (không có pending bill) để đổi bàn
+  const getEmptyTables = () => {
+    const occupiedTableNumbers = new Set(
+      allTodayPendingBills.map(b => String(b.tableNumber))
+    );
+    return tables.filter(
+      table =>
+        table.number.toString() !== tableNumber &&
+        !occupiedTableNumbers.has(String(table.number))
+    );
+  };
+
+  // Đổi bàn thực sự: cập nhật tableNumber trong Firestore rồi điều hướng
+  const handleMoveBill = async (newTableNumber) => {
+    if (!bill || isMovingTable) return;
+    setIsMovingTable(true);
+    try {
+      await updateDoc(doc(db, 'bills', bill.id), {
+        tableNumber: parseInt(newTableNumber),
+        updatedAt: serverTimestamp()
+      });
+      setShowTableSwitcher(false);
+      navigate(`/bill/${newTableNumber}`);
+    } catch (error) {
+      console.error('Lỗi khi đổi bàn:', error);
+    } finally {
+      setIsMovingTable(false);
+    }
   };
 
   if (loading) {
@@ -402,12 +427,12 @@ const PublicBill = () => {
       <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="bg-white rounded-t-lg shadow-lg p-6 text-center border-b relative">
-          {/* Table switcher button */}
-          {getAvailableTables().length > 0 && (
+          {/* Nút đổi bàn - chỉ hiện khi có bàn trống để đổi */}
+          {getEmptyTables().length > 0 && (
             <button
               onClick={() => setShowTableSwitcher(true)}
-              className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-              title="Chuyển bàn khác"
+              className="absolute top-4 right-4 p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-full transition-colors"
+              title="Đổi bàn"
             >
               <ArrowLeftRight size={20} />
             </button>
@@ -621,15 +646,21 @@ const PublicBill = () => {
         </div>
       </div>
 
-      {/* Table Switcher Modal */}
+      {/* Modal Đổi Bàn - chuyển hóa đơn sang bàn trống */}
       {showTableSwitcher && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-sm w-full max-h-[80vh] overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Chuyển sang bàn khác
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <ArrowLeftRight size={18} className="text-indigo-500" />
+                  Đổi bàn
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Hóa đơn sẽ được chuyển sang bàn mới
+                </p>
+              </div>
               <button
                 onClick={() => setShowTableSwitcher(false)}
                 className="p-1 hover:bg-gray-100 rounded-full transition-colors"
@@ -640,15 +671,16 @@ const PublicBill = () => {
             
             {/* Table List */}
             <div className="p-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Chọn bàn bạn muốn xem hóa đơn:
+              <p className="text-sm text-gray-600 mb-3">
+                Chọn bàn trống muốn chuyển đến:
               </p>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {getAvailableTables().map((table) => (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {getEmptyTables().map((table) => (
                   <button
                     key={table.id}
-                    onClick={() => handleTableSwitch(table.number)}
-                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                    onClick={() => handleMoveBill(table.number)}
+                    disabled={isMovingTable}
+                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-colors disabled:opacity-50"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -660,15 +692,19 @@ const PublicBill = () => {
                           {table.description && ` • ${table.description}`}
                         </div>
                       </div>
-                      <ChevronDown className="w-4 h-4 text-gray-400 transform -rotate-90" />
+                      {isMovingTable ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-indigo-400 transform -rotate-90" />
+                      )}
                     </div>
                   </button>
                 ))}
               </div>
               
-              {getAvailableTables().length === 0 && (
+              {getEmptyTables().length === 0 && (
                 <p className="text-center text-gray-500 py-8">
-                  Không có bàn khác để chuyển
+                  Hiện không có bàn trống để đổi
                 </p>
               )}
             </div>

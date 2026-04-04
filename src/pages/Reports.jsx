@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
@@ -10,6 +10,7 @@ const Reports = () => {
   const { menuItems, orderItems } = useApp();
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const loadCallIdRef = useRef(0);
   const [periodType, setPeriodType] = useState('week'); // 'day', 'week', 'month'
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -60,8 +61,9 @@ const Reports = () => {
   }, [startDate, endDate, periodType, menuItems, orderItems]);
 
   const loadReportData = async () => {
+    const callId = ++loadCallIdRef.current;
     setLoading(true);
-    
+
     try {
       const q = query(
         collection(db, 'bills'),
@@ -76,13 +78,16 @@ const Reports = () => {
         ...doc.data()
       }));
 
+      // Bỏ qua kết quả nếu có lần gọi mới hơn đang chạy
+      if (callId !== loadCallIdRef.current) return;
+
       // Group data by period
       const groupedData = groupDataByPeriod(bills, periodType, menuItems, orderItems);
       setReportData(groupedData);
 
       // Calculate summary
-      const totalRevenue = bills.reduce((sum, bill) => sum + bill.totalRevenue, 0);
-      const totalProfit = bills.reduce((sum, bill) => sum + bill.totalProfit, 0);
+      const totalRevenue = bills.reduce((sum, bill) => sum + (bill.totalRevenue || 0), 0);
+      const totalProfit = bills.reduce((sum, bill) => sum + (bill.totalProfit || 0), 0);
       const totalBills = bills.length;
       const avgRevenuePerBill = totalBills > 0 ? totalRevenue / totalBills : 0;
 
@@ -109,9 +114,13 @@ const Reports = () => {
       });
 
     } catch (error) {
-      console.error('Error loading report data:', error);
+      if (callId === loadCallIdRef.current) {
+        console.error('Error loading report data:', error);
+      }
     } finally {
-      setLoading(false);
+      if (callId === loadCallIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 

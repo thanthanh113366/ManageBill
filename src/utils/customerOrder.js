@@ -153,8 +153,18 @@ export const getActiveBillForTable = async (tableNumber) => {
  * - Validation không đủ có thể tạo bill invalid
  * 
  * VALIDATION REQUIRED: tableNumber, items, revenue, profit
+ * @param {number} [totalCost=0] - Tổng vốn (costPrice × qty) của lần đặt này
+ * @param {number} [totalFixedCost=0] - Tổng chi phí cố định × qty
  */
-export const createCustomerOrder = async (tableNumber, items, totalRevenue, totalProfit, note = '') => {
+export const createCustomerOrder = async (
+  tableNumber,
+  items,
+  totalRevenue,
+  totalProfit,
+  note = '',
+  totalCost = 0,
+  totalFixedCost = 0
+) => {
   try {
     const today = new Date().toISOString().split('T')[0];
 
@@ -171,6 +181,8 @@ export const createCustomerOrder = async (tableNumber, items, totalRevenue, tota
       items: items,
       totalRevenue: totalRevenue,
       totalProfit: totalProfit,
+      totalCost,
+      totalFixedCost,
       ...(note?.trim() ? { note: note.trim() } : {}),
     };
     
@@ -230,7 +242,16 @@ const mergeItems = (existingItems, newItems) => {
  * 
  * VALIDATION: Phải kiểm tra existingBill.date === today
  */
-export const addItemsToExistingBill = async (billId, existingBill, newItems, additionalRevenue, additionalProfit, note = '') => {
+export const addItemsToExistingBill = async (
+  billId,
+  existingBill,
+  newItems,
+  additionalRevenue,
+  additionalProfit,
+  note = '',
+  additionalCost = 0,
+  additionalFixedCost = 0
+) => {
   try {
     // ✅ SAFETY CHECK: Đảm bảo bill là của ngày hôm nay
     const today = new Date().toISOString().split('T')[0];
@@ -251,8 +272,10 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
     // Update bill
     await updateDoc(doc(db, 'bills', billId), {
       items: mergedItems,
-      totalRevenue: existingBill.totalRevenue + additionalRevenue,
-      totalProfit: existingBill.totalProfit + additionalProfit,
+      totalRevenue: (existingBill.totalRevenue || 0) + additionalRevenue,
+      totalProfit: (existingBill.totalProfit || 0) + additionalProfit,
+      totalCost: (existingBill.totalCost || 0) + additionalCost,
+      totalFixedCost: (existingBill.totalFixedCost || 0) + additionalFixedCost,
       ...(mergedNote ? { note: mergedNote } : {}),
       updatedAt: serverTimestamp()
     });
@@ -279,9 +302,19 @@ export const addItemsToExistingBill = async (billId, existingBill, newItems, add
  * @param {Array} items - Danh sách món
  * @param {number} totalRevenue - Tổng doanh thu
  * @param {number} totalProfit - Tổng lợi nhuận
+ * @param {number} [totalCost=0]
+ * @param {number} [totalFixedCost=0]
  * @returns {string} - Bill ID
  */
-export const submitCustomerOrder = async (tableNumber, items, totalRevenue, totalProfit, note = '') => {
+export const submitCustomerOrder = async (
+  tableNumber,
+  items,
+  totalRevenue,
+  totalProfit,
+  note = '',
+  totalCost = 0,
+  totalFixedCost = 0
+) => {
   try {
     // Check if table has existing pending bill
     const existingBill = await getActiveBillForTable(tableNumber);
@@ -296,12 +329,22 @@ export const submitCustomerOrder = async (tableNumber, items, totalRevenue, tota
         items,
         totalRevenue,
         totalProfit,
-        note
+        note,
+        totalCost,
+        totalFixedCost
       );
       billId = existingBill.id;
     } else {
       // Create new bill
-      billId = await createCustomerOrder(tableNumber, items, totalRevenue, totalProfit, note);
+      billId = await createCustomerOrder(
+        tableNumber,
+        items,
+        totalRevenue,
+        totalProfit,
+        note,
+        totalCost,
+        totalFixedCost
+      );
     }
     
     // ✅ CRITICAL: Tự động tạo menuItemTimings cho items mới (non-blocking)
@@ -329,7 +372,14 @@ export const submitCustomerOrder = async (tableNumber, items, totalRevenue, tota
  * Tạo đơn hàng mang về — luôn tạo bill mới, đánh số thứ tự trong ngày.
  * @returns {number} takeawayNumber — số thứ tự đơn mang về hôm nay (1, 2, 3...)
  */
-export const createTakeawayOrder = async (items, totalRevenue, totalProfit, note = '') => {
+export const createTakeawayOrder = async (
+  items,
+  totalRevenue,
+  totalProfit,
+  note = '',
+  totalCost = 0,
+  totalFixedCost = 0
+) => {
   const today = new Date().toISOString().split('T')[0];
 
   // Đếm số đơn mang về hôm nay để lấy số thứ tự tiếp theo
@@ -346,6 +396,8 @@ export const createTakeawayOrder = async (items, totalRevenue, totalProfit, note
     items,
     totalRevenue,
     totalProfit,
+    totalCost,
+    totalFixedCost,
     isTakeaway: true,
     takeawayNumber,
     ...(note?.trim() ? { note: note.trim() } : {}),

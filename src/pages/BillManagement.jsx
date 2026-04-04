@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat, RotateCcw, ArrowLeftRight, X } from 'lucide-react';
 import CustomerPageModal from '../components/CustomerPageModal';
 import { toast } from 'react-toastify';
+import { getBillCostTotalsForReport } from '../utils/billCostTotals';
 import EditBill from '../components/EditBill';
 import KitchenManagement from '../components/KitchenManagement';
 
@@ -290,22 +291,10 @@ const BillManagement = () => {
     let totalCostPrice = 0;
     let totalFixedCost = 0;
     
-    bills.forEach(bill => {
-      bill.items.forEach(item => {
-        let menuItem = null;
-        if (item.menuItemId) {
-          menuItem = menuItems.find(m => m.id === item.menuItemId);
-        } else if (item.orderItemId) {
-          const oi = orderItems.find(o => o.id === item.orderItemId);
-          if (oi?.parentMenuItemId) {
-            menuItem = menuItems.find(m => m.id === oi.parentMenuItemId);
-          }
-        }
-        if (menuItem) {
-          totalCostPrice += (menuItem.costPrice || 0) * item.quantity;
-          totalFixedCost += (menuItem.fixedCost || 0) * item.quantity;
-        }
-      });
+    bills.forEach((bill) => {
+      const { costPrice, fixedCost } = getBillCostTotalsForReport(bill, menuItems, orderItems);
+      totalCostPrice += costPrice;
+      totalFixedCost += fixedCost;
     });
     
     return { 

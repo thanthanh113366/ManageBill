@@ -30,7 +30,7 @@ export const calculateItemProfit = (menuItem, quantity) => {
  * @param {object} orderItem  - document từ Firestore orderItems
  * @param {object|null} parentMenuItem - document từ Firestore menuItems (nullable)
  * @param {number} quantity
- * @returns {{ price: number, revenue: number, profit: number, valid: boolean }}
+ * @returns {{ price: number, revenue: number, profit: number, cost: number, fixedCost: number, valid: boolean }}
  *   valid = false nếu không tìm được giá (nên cảnh báo UI)
  */
 export const calculateOrderItemTotals = (orderItem, parentMenuItem, quantity) => {
@@ -39,6 +39,8 @@ export const calculateOrderItemTotals = (orderItem, parentMenuItem, quantity) =>
       price: parentMenuItem.price,
       revenue: calculateItemRevenue(parentMenuItem.price, quantity),
       profit: calculateItemProfit(parentMenuItem, quantity),
+      cost: (parentMenuItem.costPrice || 0) * quantity,
+      fixedCost: (parentMenuItem.fixedCost || 0) * quantity,
       valid: true,
     };
   }
@@ -50,12 +52,14 @@ export const calculateOrderItemTotals = (orderItem, parentMenuItem, quantity) =>
       price: standalonePrice,
       revenue: calculateItemRevenue(standalonePrice, quantity),
       profit: calculateItemRevenue(standalonePrice, quantity), // không có cost
+      cost: 0,
+      fixedCost: 0,
       valid: true,
     };
   }
 
   // Không tính được giá
-  return { price: 0, revenue: 0, profit: 0, valid: false };
+  return { price: 0, revenue: 0, profit: 0, cost: 0, fixedCost: 0, valid: false };
 };
 
 /**

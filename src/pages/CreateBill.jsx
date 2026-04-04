@@ -39,6 +39,8 @@ const CreateBill = () => {
   const billSummary = useMemo(() => {
     let totalRevenue = 0;
     let totalProfit = 0;
+    let totalCost = 0;
+    let totalFixedCost = 0;
     let totalItems = 0;
 
     const items = [];
@@ -54,6 +56,8 @@ const CreateBill = () => {
 
           totalRevenue += itemRevenue;
           totalProfit += itemProfit;
+          totalCost += (menuItem.costPrice || 0) * quantity;
+          totalFixedCost += (menuItem.fixedCost || 0) * quantity;
           totalItems += quantity;
 
           items.push({
@@ -72,6 +76,8 @@ const CreateBill = () => {
       items,
       totalRevenue,
       totalProfit,
+      totalCost,
+      totalFixedCost,
       totalItems
     };
   }, [quantities, menuItems]);
@@ -86,11 +92,13 @@ const CreateBill = () => {
       totalProfit += item.customAmount;
     });
 
-    return { totalRevenue, totalProfit };
+    return { totalRevenue, totalProfit, totalCost: 0, totalFixedCost: 0 };
   }, [customItems]);
 
   const totalRevenueWithCustom = billSummary.totalRevenue + customTotals.totalRevenue;
   const totalProfitWithCustom = billSummary.totalProfit + customTotals.totalProfit;
+  const totalCostWithCustom = billSummary.totalCost + customTotals.totalCost;
+  const totalFixedCostWithCustom = billSummary.totalFixedCost + customTotals.totalFixedCost;
 
   const handleQuantityChange = (menuItemId, change) => {
     const currentQuantity = quantities[menuItemId] || 0;
@@ -164,7 +172,9 @@ const CreateBill = () => {
         status: 'pending', // pending, paid
         items: [...menuBillItems, ...customBillItems],
         totalRevenue: totalRevenueWithCustom,
-        totalProfit: totalProfitWithCustom
+        totalProfit: totalProfitWithCustom,
+        totalCost: totalCostWithCustom,
+        totalFixedCost: totalFixedCostWithCustom
       };
 
       await addDoc(collection(db, 'bills'), billData);

@@ -207,8 +207,13 @@ const TakeawayOrder = () => {
 
   // ── Summary ──
   const summary = useMemo(() => {
-    let totalRevenue = 0, totalProfit = 0, totalItems = 0;
-    const items = [], invalidItems = [];
+    let totalRevenue = 0,
+      totalProfit = 0,
+      totalCost = 0,
+      totalFixedCost = 0,
+      totalItems = 0;
+    const items = [],
+      invalidItems = [];
     Object.entries(quantities).forEach(([orderItemId, qty]) => {
       if (qty <= 0) return;
       const oi = orderItems.find((i) => i.id === orderItemId);
@@ -218,13 +223,23 @@ const TakeawayOrder = () => {
       if (totals.valid) {
         totalRevenue += totals.revenue;
         totalProfit += totals.profit;
+        totalCost += totals.cost;
+        totalFixedCost += totals.fixedCost;
         totalItems += qty;
         items.push({ orderItemId, quantity: qty, name: oi.name, price: totals.price, revenue: totals.revenue });
       } else {
         invalidItems.push(oi.name);
       }
     });
-    return { items, totalRevenue, totalProfit, totalItems, invalidItems };
+    return {
+      items,
+      totalRevenue,
+      totalProfit,
+      totalCost,
+      totalFixedCost,
+      totalItems,
+      invalidItems,
+    };
   }, [quantities, orderItems, menuItems]);
 
   const handleQuantityChange = useCallback((orderItemId, change) => {
@@ -246,7 +261,14 @@ const TakeawayOrder = () => {
     setIsSubmitting(true);
     try {
       const billItems = summary.items.map(({ orderItemId, quantity }) => ({ orderItemId, quantity }));
-      const n = await createTakeawayOrder(billItems, summary.totalRevenue, summary.totalProfit, note);
+      const n = await createTakeawayOrder(
+        billItems,
+        summary.totalRevenue,
+        summary.totalProfit,
+        note,
+        summary.totalCost,
+        summary.totalFixedCost
+      );
       navigate(`/order-success/MV-${n}`);
     } catch (err) {
       console.error(err);

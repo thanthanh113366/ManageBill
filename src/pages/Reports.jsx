@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
+import { getBillCostTotalsForReport } from '../utils/billCostTotals';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Calendar, TrendingUp, DollarSign, FileText, Package, ShoppingBag } from 'lucide-react';
 
 const Reports = () => {
-  const { menuItems } = useApp();
+  const { menuItems, orderItems } = useApp();
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [periodType, setPeriodType] = useState('week'); // 'day', 'week', 'month'
@@ -56,7 +57,7 @@ const Reports = () => {
     if (startDate && endDate) {
       loadReportData();
     }
-  }, [startDate, endDate, periodType]);
+  }, [startDate, endDate, periodType, menuItems, orderItems]);
 
   const loadReportData = async () => {
     setLoading(true);
@@ -76,7 +77,7 @@ const Reports = () => {
       }));
 
       // Group data by period
-      const groupedData = groupDataByPeriod(bills, periodType);
+      const groupedData = groupDataByPeriod(bills, periodType, menuItems, orderItems);
       setReportData(groupedData);
 
       // Calculate summary
@@ -85,18 +86,17 @@ const Reports = () => {
       const totalBills = bills.length;
       const avgRevenuePerBill = totalBills > 0 ? totalRevenue / totalBills : 0;
 
-      // Calculate total cost price and fixed cost
+      // Vốn / phí cố định: ưu tiên totalCost + totalFixedCost trên bill; thiếu thì tính lại (giống BillManagement)
       let totalCostPrice = 0;
       let totalFixedCost = 0;
-
-      bills.forEach(bill => {
-        bill.items.forEach(item => {
-          const menuItem = menuItems.find(m => m.id === item.menuItemId);
-          if (menuItem) {
-            totalCostPrice += menuItem.costPrice * item.quantity;
-            totalFixedCost += menuItem.fixedCost * item.quantity;
-          }
-        });
+      bills.forEach((bill) => {
+        const { costPrice, fixedCost } = getBillCostTotalsForReport(
+          bill,
+          menuItems,
+          orderItems
+        );
+        totalCostPrice += costPrice;
+        totalFixedCost += fixedCost;
       });
 
       setSummary({
@@ -115,7 +115,7 @@ const Reports = () => {
     }
   };
 
-  const groupDataByPeriod = (bills, period) => {
+  const groupDataByPeriod = (bills, period, menuItemsArg, orderItemsArg) => {
     const groups = {};
 
     bills.forEach(bill => {
@@ -153,14 +153,13 @@ const Reports = () => {
       groups[key].profit += bill.totalProfit;
       groups[key].bills += 1;
 
-      // Calculate cost price and fixed cost for this period
-      bill.items.forEach(item => {
-        const menuItem = menuItems.find(m => m.id === item.menuItemId);
-        if (menuItem) {
-          groups[key].costPrice += menuItem.costPrice * item.quantity;
-          groups[key].fixedCost += menuItem.fixedCost * item.quantity;
-        }
-      });
+      const { costPrice, fixedCost } = getBillCostTotalsForReport(
+        bill,
+        menuItemsArg,
+        orderItemsArg
+      );
+      groups[key].costPrice += costPrice;
+      groups[key].fixedCost += fixedCost;
     });
 
     return Object.values(groups).sort((a, b) => a.period.localeCompare(b.period));

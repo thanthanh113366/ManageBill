@@ -350,9 +350,6 @@ const PublicBill = () => {
                           <div className="flex-1">
                             <h4 className="font-medium text-gray-900">
                               {item.orderItem.name}
-                              {item.parentMenuItem && (
-                                <span className="ml-2 text-xs text-gray-500">({item.parentMenuItem.name})</span>
-                              )}
                             </h4>
                             <div className="text-sm text-gray-500 mt-1">
                               {formatCurrency(item.price)} x {item.quantity}

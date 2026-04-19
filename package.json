@@ -14,7 +14,10 @@
     "update:orderitems": "node scripts/update-orderitems-timing.js",
     "deploy:setup": "node scripts/deploy-setup.js",
     "deploy:check": "npm run build && npm run preview",
-    "setup:check": "node scripts/deploy-setup.js"
+    "setup:check": "node scripts/deploy-setup.js",
+    "export:training": "node scripts/export-bills-training.js",
+    "count:bills": "node scripts/count-bills-by-date.js",
+    "export:menu-names": "node scripts/export-menu-names.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
@@ -46,6 +49,7 @@
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
+    "dotenv": "^17.4.2",
     "eslint": "^8.55.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",

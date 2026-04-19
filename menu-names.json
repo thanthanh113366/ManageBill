@@ -1,0 +1,638 @@
+{
+  "exportedAt": "2026-04-16T12:01:47.602Z",
+  "totalMenuItems": 41,
+  "totalOrderItems": 65,
+  "totalUnique": 98,
+  "names": [
+    "7Up",
+    "Aquafina",
+    "Bánh mì nướng phô mai",
+    "Bánh mì Phô Mai",
+    "Bánh mì thêm",
+    "Bào ngư",
+    "Bào ngư nướng mỡ hành",
+    "Bào ngư sốt bơ cay",
+    "Bào ngư xào rau muống",
+    "Bắp xào",
+    "Bắp xào bơ",
+    "Bia Sài gòn",
+    "Bò lúc lắc",
+    "Bò sốt hàu phô mai",
+    "Cà na lớn",
+    "Chân gà",
+    "Chân gà chiên tỏi ớt",
+    "Chân gà hấp rau răm",
+    "Coca",
+    "Combo 2",
+    "Combo1 ( Bò sốt hàu/ Lẩu+ 2 món tự chọn + tặng 2 nước)",
+    "Cơm bò lúc lắc",
+    "Cơm chiên hải sản",
+    "Cơm chiên tỏi",
+    "Hàu",
+    "Hàu đá",
+    "Hàu nướng mỡ hành",
+    "Hàu nướng muối ớt",
+    "Hàu nướng phô mai",
+    "Hột vịt lộn",
+    "Huyết lớn",
+    "Hương lớn",
+    "Lẩu",
+    "Lẩu Tomyum",
+    "Mì xào",
+    "Mì xào bò",
+    "Mì xào giòn thập cẩm",
+    "Mì xào mềm thập cẩm",
+    "Mì xào ốc móng tay",
+    "Móng Tay",
+    "Nghêu",
+    "Nghêu Hấp sả",
+    "Nghêu Hấp Thái",
+    "Nghêu Xào bơ cay",
+    "Nghêu xào ngô hành",
+    "Nước Ngọt",
+    "Nước Suối",
+    "Ốc Bươu",
+    "Ốc bươu hấp sả",
+    "Ốc bươu hấp Thái",
+    "Ốc bươu nướng mắm ớt",
+    "Ốc bươu nướng tiêu xanh",
+    "Ốc Cà Na",
+    "Ốc cà na cháy tỏi tóp mỡ",
+    "Ốc cà na rang muối",
+    "Ốc cà na sốt bơ cay",
+    "Ốc cà na sốt me",
+    "Ốc cà na sốt trứng muối",
+    "Ốc cà na xào bơ bắp",
+    "Ốc Hương",
+    "Ốc hương cháy tỏi tóp mỡ",
+    "Ốc hương hấp sả",
+    "Ốc hương hấp Thái",
+    "Ốc hương rang muối",
+    "Ốc hương sốt bơ cay",
+    "Ốc hương sốt me",
+    "Ốc hương sốt trứng muối",
+    "Ốc hương xào bơ bắp",
+    "Ốc Len",
+    "Ốc len xào cà ri",
+    "Ốc len xào dừa",
+    "Ốc móng tay cháy tỏi",
+    "Ốc móng tay sốt me",
+    "Ốc móng tay xào rau muống",
+    "Ốc mỡ",
+    "Ốc mỡ cháy tỏi tóp mỡ",
+    "Ốc mỡ sốt me",
+    "Ốc mỡ sốt trứng muối",
+    "Ốc mỡ xào bơ bắp",
+    "Ốc Tỏi",
+    "Pepsi",
+    "Răng mực",
+    "Răng mực sốt trứng muối",
+    "Răng mực xào bơ bắp",
+    "Sò Điệp",
+    "Sò điệp nướng mỡ hành",
+    "Sò điệp nướng phô mai",
+    "Sò Huyết",
+    "Sò huyết cháy tỏi tóp mỡ",
+    "Sò huyết sốt me",
+    "Sò Lông",
+    "Sò lông nướng mỡ hành",
+    "Sting",
+    "Sụn gà",
+    "Tiger",
+    "Tóp mỡ thêm",
+    "Vắt mì thêm",
+    "Vịt lộn xào me"
+  ],
+  "details": [
+    {
+      "id": "09tuXYht5bptL8f2N3OP",
+      "name": "Bò sốt hàu phô mai",
+      "source": "menuItems"
+    },
+    {
+      "id": "0IaeXM7joZeP7JvKEYAs",
+      "name": "Hàu đá",
+      "source": "menuItems"
+    },
+    {
+      "id": "2OqbsQY7a3yTZU1g8vB0",
+      "name": "Mì xào ốc móng tay",
+      "source": "menuItems"
+    },
+    {
+      "id": "6dk2YOlTaAQXLTFr8Rfl",
+      "name": "Combo 2",
+      "source": "menuItems"
+    },
+    {
+      "id": "8A3IHWe7tdlhjl9k4TyZ",
+      "name": "Bia Sài gòn ",
+      "source": "menuItems"
+    },
+    {
+      "id": "Aq14mQgsOmn57AnXS9jx",
+      "name": "Ốc Len",
+      "source": "menuItems"
+    },
+    {
+      "id": "Ata20C2AjrTgzOpAB31H",
+      "name": "Sò Điệp",
+      "source": "menuItems"
+    },
+    {
+      "id": "Bm8tQgnqEQcLRCvLSfIU",
+      "name": "Sò Huyết",
+      "source": "menuItems"
+    },
+    {
+      "id": "C9NaA1RZcKbFPOYzNadN",
+      "name": "Ốc Hương",
+      "source": "menuItems"
+    },
+    {
+      "id": "CUoDD6wG5ZSzmj9FtMd2",
+      "name": "Cơm chiên hải sản ",
+      "source": "menuItems"
+    },
+    {
+      "id": "CwhPlQNCgwaqfEEqI0XR",
+      "name": "Ốc Cà Na",
+      "source": "menuItems"
+    },
+    {
+      "id": "Ev8boWGTG2u0ETGlIaUI",
+      "name": "Chân gà",
+      "source": "menuItems"
+    },
+    {
+      "id": "GRh39Qt9AKrqS44FaUPj",
+      "name": "Cà na lớn",
+      "source": "menuItems"
+    },
+    {
+      "id": "GiIDFS4j2kLbvc2e5CWw",
+      "name": "Cơm chiên tỏi",
+      "source": "menuItems"
+    },
+    {
+      "id": "I1gHa0JGttyxPV2HJoZH",
+      "name": "Combo 2 ",
+      "source": "menuItems"
+    },
+    {
+      "id": "KbFCxOcEMptnUNh5SASU",
+      "name": "Tóp mỡ thêm ",
+      "source": "menuItems"
+    },
+    {
+      "id": "OdVP01WT2MHM3eJCxRxK",
+      "name": "Hột vịt lộn",
+      "source": "menuItems"
+    },
+    {
+      "id": "OnYy3UPwkCBekIlUD5Yr",
+      "name": "Combo1 ( Bò sốt hàu/ Lẩu+ 2 món tự chọn + tặng 2 nước) ",
+      "source": "menuItems"
+    },
+    {
+      "id": "SMIV6GasTo04PsvqUdtX",
+      "name": "Sò Lông",
+      "source": "menuItems"
+    },
+    {
+      "id": "WDF4Hl51uzHOROiY2GIT",
+      "name": "Răng mực ",
+      "source": "menuItems"
+    },
+    {
+      "id": "YWURhzgWcRnEsrRIY3X9",
+      "name": "Nước Ngọt",
+      "source": "menuItems"
+    },
+    {
+      "id": "ZzJBtyOT6vTkgK2QledH",
+      "name": "Bò lúc lắc",
+      "source": "menuItems"
+    },
+    {
+      "id": "aaCwyhl1FXrM0qmJcu5B",
+      "name": "Ốc mỡ",
+      "source": "menuItems"
+    },
+    {
+      "id": "altws1W0ZGFAMuQ7ElS1",
+      "name": "Mì xào",
+      "source": "menuItems"
+    },
+    {
+      "id": "cb1H15sHaMcHBiCuJ1za",
+      "name": "Bánh mì Phô Mai",
+      "source": "menuItems"
+    },
+    {
+      "id": "dMaC9FvIuJ3H0WpXo2fF",
+      "name": "Bánh mì thêm",
+      "source": "menuItems"
+    },
+    {
+      "id": "dMdmCi4l3haz9PKNt8jm",
+      "name": "Huyết lớn ",
+      "source": "menuItems"
+    },
+    {
+      "id": "dXMgKuGrlG9bodLGugnd",
+      "name": "Bắp xào",
+      "source": "menuItems"
+    },
+    {
+      "id": "dYnAyDohzKVggdsZsXHH",
+      "name": "Móng Tay",
+      "source": "menuItems"
+    },
+    {
+      "id": "dqIfDPtA3q4JfqGjcxb9",
+      "name": "Vắt mì thêm",
+      "source": "menuItems"
+    },
+    {
+      "id": "fr67ZE8dtsFNMk833JLs",
+      "name": "Sụn gà",
+      "source": "menuItems"
+    },
+    {
+      "id": "gR8eprj7k2n7ZaQ7CLg1",
+      "name": "Cơm bò lúc lắc",
+      "source": "menuItems"
+    },
+    {
+      "id": "kxTxJw1QsP1e8UyUZoy2",
+      "name": "Lẩu ",
+      "source": "menuItems"
+    },
+    {
+      "id": "kznd3GLgk0AtSJvjjuT0",
+      "name": "Hương lớn",
+      "source": "menuItems"
+    },
+    {
+      "id": "lP3sht1bEao3KOHxpyMW",
+      "name": "Ốc Tỏi",
+      "source": "menuItems"
+    },
+    {
+      "id": "ljFvqQsqxF44oY3d0x9q",
+      "name": "Hàu",
+      "source": "menuItems"
+    },
+    {
+      "id": "mJnBJ5BMUahDxvLewcUu",
+      "name": "Nghêu",
+      "source": "menuItems"
+    },
+    {
+      "id": "pQRjDJFUNQ4f4AAm3u2v",
+      "name": "Tiger",
+      "source": "menuItems"
+    },
+    {
+      "id": "pV61892Tp8KNjOv8QANT",
+      "name": "Ốc Bươu",
+      "source": "menuItems"
+    },
+    {
+      "id": "qMSRGuvqVw5E2BVlSPJH",
+      "name": "Bào ngư",
+      "source": "menuItems"
+    },
+    {
+      "id": "tpbfTBgOXZ9L7kNdR9sY",
+      "name": "Nước Suối",
+      "source": "menuItems"
+    },
+    {
+      "id": "0GGO9WaOe7Pp3Yn3FZvK",
+      "name": "Sting",
+      "source": "orderItems"
+    },
+    {
+      "id": "1P5BUoHrySLA1vMu3TBZ",
+      "name": "Răng mực xào bơ bắp",
+      "source": "orderItems"
+    },
+    {
+      "id": "3uP89ExQ8kKN2XbUxMj8",
+      "name": "Pepsi",
+      "source": "orderItems"
+    },
+    {
+      "id": "5MqwezHy9eH504xdz296",
+      "name": "Ốc mỡ sốt me",
+      "source": "orderItems"
+    },
+    {
+      "id": "7rnjO8DwTLbbpz5KPd1R",
+      "name": "Chân gà chiên tỏi ớt",
+      "source": "orderItems"
+    },
+    {
+      "id": "8Fg4enAL4Veat32rsHw2",
+      "name": "Ốc cà na rang muối",
+      "source": "orderItems"
+    },
+    {
+      "id": "9nu2n9U0ziGp6O77DcLP",
+      "name": "Chân gà hấp rau răm",
+      "source": "orderItems"
+    },
+    {
+      "id": "AHASFALm50ervDLYtdvv",
+      "name": "Bào ngư xào rau muống",
+      "source": "orderItems"
+    },
+    {
+      "id": "DhGRWBFtFX7EwLJb5HhY",
+      "name": "Ốc móng tay xào rau muống",
+      "source": "orderItems"
+    },
+    {
+      "id": "EFHiTLrOFg7npE7mFl7p",
+      "name": "Ốc cà na xào bơ bắp",
+      "source": "orderItems"
+    },
+    {
+      "id": "FdFtt4UxYffxYvNPrS6L",
+      "name": "Cơm bò lúc lắc",
+      "source": "orderItems"
+    },
+    {
+      "id": "G7JW46QPRiAkhhKESyf2",
+      "name": "7Up",
+      "source": "orderItems"
+    },
+    {
+      "id": "GHsbgoAU8JMmOdz4Hr1b",
+      "name": "Ốc móng tay cháy tỏi",
+      "source": "orderItems"
+    },
+    {
+      "id": "Jvt1K7mywjVHUcbHQphy",
+      "name": "Ốc hương xào bơ bắp",
+      "source": "orderItems"
+    },
+    {
+      "id": "KozPCFq08WXxyxsMHC3q",
+      "name": "Hàu nướng phô mai",
+      "source": "orderItems"
+    },
+    {
+      "id": "NoJe4zxQgGQPOM9gFbi4",
+      "name": "Mì xào mềm thập cẩm",
+      "source": "orderItems"
+    },
+    {
+      "id": "O8HhPxigVVJ0urugASHs",
+      "name": "Cơm chiên tỏi",
+      "source": "orderItems"
+    },
+    {
+      "id": "OASXsxAuUDIiyxalIuti",
+      "name": "Ốc hương sốt trứng muối",
+      "source": "orderItems"
+    },
+    {
+      "id": "SLh0WcqRPIOmugGMnSEE",
+      "name": "Ốc cà na sốt bơ cay",
+      "source": "orderItems"
+    },
+    {
+      "id": "SXqvIJceSmgPAHA4Sooa",
+      "name": "Ốc len xào dừa",
+      "source": "orderItems"
+    },
+    {
+      "id": "UHovkecXFIwFBuhdM1ry",
+      "name": "Ốc len xào cà ri",
+      "source": "orderItems"
+    },
+    {
+      "id": "VDvp5Wwif4UbE1DqjOnf",
+      "name": "Sò điệp nướng mỡ hành",
+      "source": "orderItems"
+    },
+    {
+      "id": "VxXWUr1OaeryZZrisdlD",
+      "name": "Ốc hương rang muối",
+      "source": "orderItems"
+    },
+    {
+      "id": "W96CFjfo0a1aSfGNPwKM",
+      "name": "Ốc hương hấp sả",
+      "source": "orderItems"
+    },
+    {
+      "id": "WKTvu0ZdjNRwmd4dCa5o",
+      "name": "Bò lúc lắc",
+      "source": "orderItems"
+    },
+    {
+      "id": "XEWCH4DvrS1erXUUnKT6",
+      "name": "Nghêu Xào bơ cay",
+      "source": "orderItems"
+    },
+    {
+      "id": "XOyJUOrVRmWJY2Q6pAoG",
+      "name": "Bánh Mì thêm",
+      "source": "orderItems"
+    },
+    {
+      "id": "aJqg58zu5lJ4EGfx8jQt",
+      "name": "Coca",
+      "source": "orderItems"
+    },
+    {
+      "id": "b9tPypnVt2UGH5wqi2pN",
+      "name": "Aquafina",
+      "source": "orderItems"
+    },
+    {
+      "id": "dNUFxKGczGZL0UH6yUUK",
+      "name": "Ốc mỡ cháy tỏi tóp mỡ",
+      "source": "orderItems"
+    },
+    {
+      "id": "e3G6yzna9fIz7xTKcgUI",
+      "name": "Răng mực sốt trứng muối",
+      "source": "orderItems"
+    },
+    {
+      "id": "fgTNkduLlbU8uUTpI1os",
+      "name": "Mì xào bò",
+      "source": "orderItems"
+    },
+    {
+      "id": "g0KO3zQQ7mAiAoydj2Jg",
+      "name": "Nghêu Hấp Thái",
+      "source": "orderItems"
+    },
+    {
+      "id": "g0rek0wV5vLDz1Thwwd9",
+      "name": "Bắp xào bơ",
+      "source": "orderItems"
+    },
+    {
+      "id": "hwnq5JFtkzBittCe79sf",
+      "name": "Ốc hương cháy tỏi tóp mỡ",
+      "source": "orderItems"
+    },
+    {
+      "id": "ifNFciymw6YKSdsL6wKO",
+      "name": "Ốc hương sốt bơ cay",
+      "source": "orderItems"
+    },
+    {
+      "id": "is328GUbd86HM08kjjFs",
+      "name": "Ốc mỡ xào bơ bắp",
+      "source": "orderItems"
+    },
+    {
+      "id": "jDVNAQGsnyRBGHARjRam",
+      "name": "Ốc móng tay sốt me",
+      "source": "orderItems"
+    },
+    {
+      "id": "jILmqTRN4RjFLEFlhILS",
+      "name": "Nghêu Hấp sả",
+      "source": "orderItems"
+    },
+    {
+      "id": "jLdVa0FmflLDlQJsjjuW",
+      "name": "Cơm chiên hải sản",
+      "source": "orderItems"
+    },
+    {
+      "id": "jenVhlBB2ANQx7EmDR4c",
+      "name": "Bánh mì nướng phô mai",
+      "source": "orderItems"
+    },
+    {
+      "id": "k9OKTjCY2fjAzsUIP1pC",
+      "name": "Bào ngư nướng mỡ hành",
+      "source": "orderItems"
+    },
+    {
+      "id": "kfszX4Zw4dHvmqCNHYkJ",
+      "name": "Bò sốt hàu phô mai",
+      "source": "orderItems"
+    },
+    {
+      "id": "mMwVj3VGUP3zaSQpthq6",
+      "name": "Ốc bươu nướng mắm ớt",
+      "source": "orderItems"
+    },
+    {
+      "id": "mlElVQGtoSiMYLr0fk7h",
+      "name": "Sò điệp nướng phô mai",
+      "source": "orderItems"
+    },
+    {
+      "id": "o53MOHuWDzC0zASbecNT",
+      "name": "Ốc cà na sốt trứng muối",
+      "source": "orderItems"
+    },
+    {
+      "id": "oQpmOUM8CY1hIo9TZ9CW",
+      "name": "Ốc bươu hấp sả",
+      "source": "orderItems"
+    },
+    {
+      "id": "pOD6CIkn2bljEAcRP33O",
+      "name": "Mì xào ốc móng tay",
+      "source": "orderItems"
+    },
+    {
+      "id": "q5MNLb7XHvBnNljVU2qd",
+      "name": "Sò huyết sốt me",
+      "source": "orderItems"
+    },
+    {
+      "id": "rB2G3AAWQK7Icnpjm9iZ",
+      "name": "Ốc mỡ sốt trứng muối",
+      "source": "orderItems"
+    },
+    {
+      "id": "sHcpbnvWb9H5zaaixKp8",
+      "name": "Ốc cà na cháy tỏi tóp mỡ",
+      "source": "orderItems"
+    },
+    {
+      "id": "sQaAwLbe7qbUgevEWQVz",
+      "name": "Ốc bươu nướng tiêu xanh",
+      "source": "orderItems"
+    },
+    {
+      "id": "u7TcTmTv7GteoJKT5YAp",
+      "name": "Sò huyết cháy tỏi tóp mỡ",
+      "source": "orderItems"
+    },
+    {
+      "id": "v690bpF9f54tiVOjz9VS",
+      "name": "Lẩu Tomyum",
+      "source": "orderItems"
+    },
+    {
+      "id": "vBoLNO6feH2kYFiCmH7h",
+      "name": "Ốc bươu hấp Thái",
+      "source": "orderItems"
+    },
+    {
+      "id": "vrP3dUdKrog1m2rhAOc9",
+      "name": "Ốc hương sốt me",
+      "source": "orderItems"
+    },
+    {
+      "id": "w3fptKm1m6nrnc3e9GzB",
+      "name": "Ốc hương hấp Thái",
+      "source": "orderItems"
+    },
+    {
+      "id": "w3xPS8V8eYC70x3OibUu",
+      "name": "Bào ngư sốt bơ cay",
+      "source": "orderItems"
+    },
+    {
+      "id": "xCxHRE58ZZm45JyocnU5",
+      "name": "Mì xào giòn thập cẩm",
+      "source": "orderItems"
+    },
+    {
+      "id": "xm78BXAaGRlK1djoxBbO",
+      "name": "Sò lông nướng mỡ hành",
+      "source": "orderItems"
+    },
+    {
+      "id": "xxZBEYhvTGDF68YnAEu2",
+      "name": "Hàu nướng mỡ hành",
+      "source": "orderItems"
+    },
+    {
+      "id": "yMGyUG9oN72TpaXMRDz7",
+      "name": "Ốc cà na sốt me",
+      "source": "orderItems"
+    },
+    {
+      "id": "yp44nJxgIzcHF72RwAkr",
+      "name": "Hàu nướng muối ớt",
+      "source": "orderItems"
+    },
+    {
+      "id": "yydrnepHrhuwtuR0QEjW",
+      "name": "Vịt lộn xào me",
+      "source": "orderItems"
+    },
+    {
+      "id": "zxunRJ5XIjMWpJIhxjFj",
+      "name": "Nghêu xào ngô hành ",
+      "source": "orderItems"
+    }
+  ]
+}

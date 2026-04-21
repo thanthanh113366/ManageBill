@@ -250,6 +250,57 @@ firebase deploy
 - Cập nhật Firestore Security Rules để bảo mật hơn
 - Cấu hình environment variables cho Firebase config
 
+## Grafana và Voice Metrics
+
+Phần này dùng để test luồng gọi API giọng nói theo dataset và đẩy metrics phục vụ dashboard/alert trên Grafana.
+
+### Chạy script test để xuất metrics
+
+Đọc file docs/TEST_GRAFANA để rõ hơn:
+
+```bash
+# Online test + export metrics
+node "scripts/test-voice-metrics-from-dataset.js" --dataset "path_to_voice_dataset" --env ".env" --samples 50 --timeout-ms 45000 --export --source "voice_dataset_online_test"
+
+# Gần thực tế: áp rule accepted + tạo bill test
+node "scripts/test-voice-metrics-from-dataset.js" --dataset "path_to_voice_dataset" --env ".env" --samples 50 --create-bill --auto-paid --accept-min-matched 1 --accept-min-match-rate 0.6 --accept-min-avg-confidence 0.55 --export --source "voice_dataset_online_test"
+```
+
+Khi cần truy bug theo từng sample, bật thêm trace và event log:
+
+```bash
+node "scripts/test-voice-metrics-from-dataset.js" --dataset "path_to_voice_dataset" --env ".env" --samples 50 --timeout-ms 45000 --export --trace --log-events --run-id "run_voice_20260420" --source "voice_dataset_online_test"
+```
+
+### Logic accepted/cancelled (gần thực tế)
+
+- `accepted` khi đồng thời đạt:
+  - `matched_count >= accept_min_matched` (mặc định `1`)
+  - `match_rate >= accept_min_match_rate` (mặc định `0.6`)
+  - `avg_confidence >= accept_min_avg_confidence` (mặc định `0.55`)
+- `cancelled` khi thiếu một trong các điều kiện trên, hoặc API lỗi, transcript rỗng, hoặc parse ra 0 item.
+
+### KPI query nhanh trên Grafana
+
+- Parse fail rate = `voice_test_file_parse_empty_total / voice_test_file_total`
+- Match success rate = `voice_test_matched_items_total / voice_test_parsed_items_total`
+- End-to-end acceptance = `voice_test_file_accepted_total / voice_test_file_total`
+- API error rate = `voice_test_api_error_total / voice_test_file_total`
+
+### Tách dữ liệu UI và script bằng `source`
+
+- UI app: đặt `VITE_METRICS_SOURCE=app_ui` trong env của app/web.
+- Script test: dùng `--source "voice_dataset_online_test"` khi chạy script.
+- Query mẫu:
+  - UI: `sum(increase(voice_order_accepted_total{source="app_ui"}[15m]))`
+  - Script: `sum(increase(voice_order_accepted_total{source="voice_dataset_online_test"}[15m]))`
+
+### Lưu ý về cardinality
+
+- Không đưa transcript raw vào metric labels.
+- `sample_id` chỉ nên để ở logs/traces, không để ở metrics.
+- Chuẩn hóa `reason_code` thành tập giá trị cố định để tránh nổ series.
+
 ## Tính năng nâng cao có thể thêm
 
 - [ ] Multiple user accounts với roles khác nhau

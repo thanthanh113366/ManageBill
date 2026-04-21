@@ -17,7 +17,8 @@
     "setup:check": "node scripts/deploy-setup.js",
     "export:training": "node scripts/export-bills-training.js",
     "count:bills": "node scripts/count-bills-by-date.js",
-    "export:menu-names": "node scripts/export-menu-names.js"
+    "export:menu-names": "node scripts/export-menu-names.js",
+    "metrics:test:voice": "node scripts/test-voice-metrics-from-dataset.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
@@ -29,7 +30,9 @@
     "@hookform/resolvers": "^3.3.2",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.213.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.215.0",
     "@opentelemetry/sdk-metrics": "^2.6.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
     "firebase": "^10.7.1",
     "fuse.js": "^7.1.0",
     "lucide-react": "^0.294.0",

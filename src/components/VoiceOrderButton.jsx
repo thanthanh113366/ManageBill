@@ -45,6 +45,7 @@ export const VoiceOrderButton = ({ menuItems, currentCategory, onItemsMatched })
 
   // Xử lý đơn hàng từ accumulated transcript
   const handleProcessOrder = useCallback((fullTranscript) => {
+    const totalStart = performance.now();
     if (!fullTranscript || typeof fullTranscript !== 'string' || fullTranscript.trim().length === 0) {
       setIsProcessing(false);
       return;
@@ -71,8 +72,12 @@ export const VoiceOrderButton = ({ menuItems, currentCategory, onItemsMatched })
 
       // Parse voice text
       let parsedItems = [];
+      let parseDuration = 0;
       try {
+        const parseStart = performance.now();
         parsedItems = parseVoiceOrder(fullTranscript);
+        parseDuration = performance.now() - parseStart;
+        getVoiceOrderMetrics().recordParseLatency(parseDuration);
       } catch (parseError) {
         console.error('Error parsing voice order:', parseError);
         toast.error('Lỗi khi phân tích đơn hàng. Vui lòng thử lại.');
@@ -87,6 +92,7 @@ export const VoiceOrderButton = ({ menuItems, currentCategory, onItemsMatched })
       }
 
       // Match with menu items
+      const matchStart = performance.now();
       const matchedItems = [];
       const unmatchedItems = [];
 
@@ -148,6 +154,8 @@ export const VoiceOrderButton = ({ menuItems, currentCategory, onItemsMatched })
       const metrics = getVoiceOrderMetrics();
       metrics.recordPreview();
       metrics.recordParsedItems(parsedItems.length);
+      metrics.recordMatchLatency(performance.now() - matchStart);
+      metrics.recordTotalProcessingLatency(performance.now() - totalStart);
       matchedItems.forEach((item) => {
         metrics.recordMatchedItem(item.menuItemId);
         metrics.recordMatchConfidence(item.confidence ?? 0);

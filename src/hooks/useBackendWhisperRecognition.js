@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { toast } from 'react-toastify';
+import { getVoiceOrderMetrics } from '../utils/voiceOrderMetrics';
 
 /**
  * Custom hook for Backend Whisper API
@@ -20,7 +21,7 @@ export const useBackendWhisperRecognition = (onResult) => {
   const streamRef = useRef(null);
 
   // Backend URL from env or default from API_DOCUMENTATION.md
-  const backendUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://therapist-squad-requiring-steady.trycloudflare.com';
+  const backendUrl = import.meta.env.VITE_BACKEND_API_URL;
 
   /**
    * Start recording audio
@@ -127,12 +128,14 @@ export const useBackendWhisperRecognition = (onResult) => {
       formData.append('file', audioBlob, 'recording.webm');
 
       console.log('Sending audio to backend:', `${backendUrl}/transcribe`);
+      const apiStart = performance.now();
 
       // Call Backend API
       const response = await fetch(`${backendUrl}/transcribe`, {
         method: 'POST',
         body: formData
       });
+      getVoiceOrderMetrics().recordApiLatency(performance.now() - apiStart);
 
       // Handle errors as per API_DOCUMENTATION.md
       if (response.status === 503) {

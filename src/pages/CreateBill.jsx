@@ -20,7 +20,7 @@ const CATEGORIES = [
 ];
 
 const CreateBill = () => {
-  const { menuItems, tables } = useApp();
+  const { menuItems, orderItems, tables } = useApp();
   const [quantities, setQuantities] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('oc');
@@ -32,7 +32,7 @@ const CreateBill = () => {
   // Custom items (món khác) cho CreateBill
   const [customItems, setCustomItems] = useState([]);
 
-  // Set menuItemId vừa thêm từ voice – dùng để emit metric 7 khi user gỡ món
+  // Set orderItemId vừa thêm từ voice – dùng để emit metric 7 khi user gỡ món
   const voiceAddedIdsRef = useRef(new Set());
 
   // Tính toán tổng bill
@@ -45,26 +45,36 @@ const CreateBill = () => {
 
     const items = [];
 
-    Object.entries(quantities).forEach(([menuItemId, quantity]) => {
+    Object.entries(quantities).forEach(([orderItemId, quantity]) => {
       if (quantity > 0) {
-        const menuItem = menuItems.find(item => item.id === menuItemId);
-        if (menuItem) {
-          const itemRevenue = menuItem.price * quantity;
-          const taxAmount = itemRevenue * (menuItem.tax / 100);
-          const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - (menuItem.price * menuItem.tax / 100);
+        const orderItem = orderItems.find(item => item.id === orderItemId);
+        if (orderItem) {
+          // Ưu tiên dữ liệu từ orderItem, fallback sang menuItem cha để giữ logic lợi nhuận
+          const parentMenuItem = orderItem.parentMenuItemId
+            ? menuItems.find(item => item.id === orderItem.parentMenuItemId)
+            : null;
+          const price = Number(orderItem.price ?? parentMenuItem?.price ?? 0);
+          const costPrice = Number(orderItem.costPrice ?? parentMenuItem?.costPrice ?? 0);
+          const fixedCost = Number(orderItem.fixedCost ?? parentMenuItem?.fixedCost ?? 0);
+          const tax = Number(orderItem.tax ?? parentMenuItem?.tax ?? 0);
+
+          const itemRevenue = price * quantity;
+          const taxAmount = itemRevenue * (tax / 100);
+          const profitPerItem = price - costPrice - fixedCost - (price * tax / 100);
           const itemProfit = profitPerItem * quantity;
 
           totalRevenue += itemRevenue;
           totalProfit += itemProfit;
-          totalCost += (menuItem.costPrice || 0) * quantity;
-          totalFixedCost += (menuItem.fixedCost || 0) * quantity;
+          totalCost += costPrice * quantity;
+          totalFixedCost += fixedCost * quantity;
           totalItems += quantity;
 
           items.push({
-            menuItemId,
+            orderItemId,
+            menuItemId: orderItem.parentMenuItemId || null,
             quantity,
-            name: menuItem.name,
-            price: menuItem.price,
+            name: orderItem.name,
+            price,
             revenue: itemRevenue,
             profit: itemProfit
           });
@@ -80,7 +90,7 @@ const CreateBill = () => {
       totalFixedCost,
       totalItems
     };
-  }, [quantities, menuItems]);
+  }, [quantities, orderItems, menuItems]);
 
   // Tổng tiền cho custom items
   const customTotals = useMemo(() => {
@@ -100,40 +110,40 @@ const CreateBill = () => {
   const totalCostWithCustom = billSummary.totalCost + customTotals.totalCost;
   const totalFixedCostWithCustom = billSummary.totalFixedCost + customTotals.totalFixedCost;
 
-  const handleQuantityChange = (menuItemId, change) => {
-    const currentQuantity = quantities[menuItemId] || 0;
+  const handleQuantityChange = (orderItemId, change) => {
+    const currentQuantity = quantities[orderItemId] || 0;
     const newQuantity = Math.max(0, currentQuantity + change);
-    if (newQuantity === 0 && voiceAddedIdsRef.current.has(menuItemId)) {
-      getVoiceOrderMetrics().recordUserRemovedVoiceItem(menuItemId);
-      voiceAddedIdsRef.current.delete(menuItemId);
+    if (newQuantity === 0 && voiceAddedIdsRef.current.has(orderItemId)) {
+      getVoiceOrderMetrics().recordUserRemovedVoiceItem(orderItemId);
+      voiceAddedIdsRef.current.delete(orderItemId);
     }
     setQuantities(prev => {
       if (newQuantity === 0) {
-        const { [menuItemId]: removed, ...rest } = prev;
+        const { [orderItemId]: removed, ...rest } = prev;
         return rest;
       }
       return {
         ...prev,
-        [menuItemId]: newQuantity
+        [orderItemId]: newQuantity
       };
     });
   };
 
-  const setQuantityDirectly = (menuItemId, value) => {
+  const setQuantityDirectly = (orderItemId, value) => {
     const quantity = Math.max(0, parseInt(value) || 0);
-    if (quantity === 0 && voiceAddedIdsRef.current.has(menuItemId)) {
-      getVoiceOrderMetrics().recordUserRemovedVoiceItem(menuItemId);
-      voiceAddedIdsRef.current.delete(menuItemId);
+    if (quantity === 0 && voiceAddedIdsRef.current.has(orderItemId)) {
+      getVoiceOrderMetrics().recordUserRemovedVoiceItem(orderItemId);
+      voiceAddedIdsRef.current.delete(orderItemId);
     }
     if (quantity === 0) {
       setQuantities(prev => {
-        const { [menuItemId]: removed, ...rest } = prev;
+        const { [orderItemId]: removed, ...rest } = prev;
         return rest;
       });
     } else {
       setQuantities(prev => ({
         ...prev,
-        [menuItemId]: quantity
+        [orderItemId]: quantity
       }));
     }
   };
@@ -155,8 +165,8 @@ const CreateBill = () => {
       const today = new Date();
       const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
-      const menuBillItems = billSummary.items.map(item => ({
-        menuItemId: item.menuItemId,
+      const orderBillItems = billSummary.items.map(item => ({
+        orderItemId: item.orderItemId,
         quantity: item.quantity
       }));
 
@@ -170,7 +180,7 @@ const CreateBill = () => {
         date: dateString,
         tableNumber: parseInt(selectedTable), // Convert to number
         status: 'pending', // pending, paid
-        items: [...menuBillItems, ...customBillItems],
+        items: [...orderBillItems, ...customBillItems],
         totalRevenue: totalRevenueWithCustom,
         totalProfit: totalProfitWithCustom,
         totalCost: totalCostWithCustom,
@@ -272,22 +282,22 @@ const CreateBill = () => {
       });
 
   // Filter menu items by category
-  const filteredMenuItems = useMemo(() => {
+  const filteredOrderItems = useMemo(() => {
     if (selectedCategory === 'all') {
-      return menuItems;
+      return orderItems;
     }
-    return menuItems.filter(item => item.category === selectedCategory);
-  }, [menuItems, selectedCategory]);
+    return orderItems.filter(item => item.category === selectedCategory);
+  }, [orderItems, selectedCategory]);
 
   // Get count for each category
   const getCategoryCount = (categoryValue) => {
     if (categoryValue === 'all') {
-      return menuItems.length;
+      return orderItems.length;
     }
-    return menuItems.filter(item => item.category === categoryValue).length;
+    return orderItems.filter(item => item.category === categoryValue).length;
   };
 
-  if (menuItems.length === 0) {
+  if (orderItems.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
@@ -296,7 +306,7 @@ const CreateBill = () => {
             Chưa có món nào trong menu
           </h2>
           <p className="text-gray-600 mb-4">
-            Vui lòng thêm các món ăn vào menu trước khi tạo đơn hàng
+            Vui lòng thêm các món trong danh sách order trước khi tạo đơn hàng
           </p>
           <a
             href="/menu"
@@ -347,7 +357,7 @@ const CreateBill = () => {
             
             {/* Voice Order Button - Cạnh phần chọn bàn */}
             <VoiceOrderButton 
-              menuItems={menuItems}
+              menuItems={orderItems}
               currentCategory={selectedCategory}
               onItemsMatched={handleVoiceItemsMatched}
             />
@@ -382,9 +392,9 @@ const CreateBill = () => {
           </div>
         </div>
         
-        {/* Menu items */}
+        {/* Order items */}
         <div className="space-y-4 mb-6">
-          {filteredMenuItems.map((item) => {
+          {filteredOrderItems.map((item) => {
             const quantity = quantities[item.id] || 0;
             
             return (
@@ -450,7 +460,7 @@ const CreateBill = () => {
             
             <div className="space-y-2 mb-4">
               {billSummary.items.map((item) => (
-                <div key={item.menuItemId} className="flex justify-between text-sm">
+                <div key={item.orderItemId} className="flex justify-between text-sm">
                   <span className="text-gray-600">
                     {item.name} x{item.quantity}
                   </span>

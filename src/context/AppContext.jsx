@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { DEFAULT_PNL_SETTINGS } from '../utils/pnlCalculations';
 
 const AppContext = createContext();
 
@@ -10,6 +11,8 @@ const initialState = {
   menuItems: [],
   orderItems: [],
   tables: [],
+  expenseCategories: [],
+  pnlSettings: DEFAULT_PNL_SETTINGS,
   loading: false,
   error: null
 };
@@ -25,6 +28,10 @@ const appReducer = (state, action) => {
       return { ...state, orderItems: action.payload };
     case 'SET_TABLES':
       return { ...state, tables: action.payload };
+    case 'SET_EXPENSE_CATEGORIES':
+      return { ...state, expenseCategories: action.payload };
+    case 'SET_PNL_SETTINGS':
+      return { ...state, pnlSettings: action.payload };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     case 'SET_ERROR':
@@ -81,14 +88,53 @@ export const AppProvider = ({ children }) => {
     if (state.isAuthenticated) {
       const q = query(collection(db, 'tables'), orderBy('number'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const tables = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+        const tables = snapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
         }));
         dispatch({ type: 'SET_TABLES', payload: tables });
       }, (error) => {
         console.error('Error loading tables:', error);
         dispatch({ type: 'SET_ERROR', payload: 'Lỗi tải danh sách bàn' });
+      });
+
+      return () => unsubscribe();
+    }
+  }, [state.isAuthenticated]);
+
+  // Load expense categories (cho module Quản lý vốn & P&L)
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      const q = query(collection(db, 'expenseCategories'), orderBy('order'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const items = snapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        }));
+        dispatch({ type: 'SET_EXPENSE_CATEGORIES', payload: items });
+      }, (error) => {
+        console.error('Error loading expense categories:', error);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [state.isAuthenticated]);
+
+  // Load P&L settings (single doc: pnlSettings/default)
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      const ref = doc(db, 'pnlSettings', 'default');
+      const unsubscribe = onSnapshot(ref, (snap) => {
+        if (snap.exists()) {
+          dispatch({
+            type: 'SET_PNL_SETTINGS',
+            payload: { ...DEFAULT_PNL_SETTINGS, ...snap.data() }
+          });
+        } else {
+          dispatch({ type: 'SET_PNL_SETTINGS', payload: DEFAULT_PNL_SETTINGS });
+        }
+      }, (error) => {
+        console.error('Error loading P&L settings:', error);
       });
 
       return () => unsubscribe();

@@ -17,6 +17,9 @@ import PublicBill from './pages/PublicBill';
 import CustomerOrder from './pages/CustomerOrder';
 import OrderSuccess from './pages/OrderSuccess';
 import TakeawayOrder from './pages/TakeawayOrder';
+import DailyExpenses from './pages/DailyExpenses';
+import MonthlyFixedCosts from './pages/MonthlyFixedCosts';
+import ExpenseCategories from './pages/ExpenseCategories';
 import { initVoiceOrderMetrics } from './utils/voiceOrderMetrics';
 
 import './index.css';
@@ -52,6 +55,9 @@ const ProtectedRoutes = () => {
         <Route path="/bills" element={<BillManagement />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/dish-analysis" element={<DishAnalysis />} />
+        <Route path="/expenses" element={<DailyExpenses />} />
+        <Route path="/fixed-costs" element={<MonthlyFixedCosts />} />
+        <Route path="/expense-categories" element={<ExpenseCategories />} />
         <Route path="/qr" element={<QRCodeManager />} />
       </Routes>
     </Layout>

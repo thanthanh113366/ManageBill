@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X, Home, ShoppingCart, FileText, BarChart3, QrCode, PieChart } from 'lucide-react';
+import { LogOut, Menu, X, Home, ShoppingCart, FileText, BarChart3, QrCode, PieChart, Wallet, Building2, Tag } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useState } from 'react';
 
@@ -14,6 +14,9 @@ const Layout = ({ children }) => {
     { path: '/bills', label: 'Quản lý đơn hàng', icon: FileText },
     { path: '/reports', label: 'Báo cáo', icon: BarChart3 },
     { path: '/dish-analysis', label: 'Tổng kết món', icon: PieChart },
+    { path: '/expenses', label: 'Vốn hàng ngày', icon: Wallet },
+    { path: '/fixed-costs', label: 'Chi phí cố định', icon: Building2 },
+    { path: '/expense-categories', label: 'Danh mục chi phí', icon: Tag },
     { path: '/menu', label: 'Quản lý menu', icon: ShoppingCart },
     { path: '/qr', label: 'QR Code thanh toán', icon: QrCode }
   ];

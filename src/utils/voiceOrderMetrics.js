@@ -2,10 +2,8 @@
  * Voice order metrics – OpenTelemetry metrics for evaluate_voice_order.md
  *
  * Browser note:
- * - If exporting cross-origin directly to Grafana Cloud OTLP gateway, you must provide headers:
- *   VITE_OTEL_EXPORTER_OTLP_ENDPOINT (absolute) + VITE_OTEL_EXPORTER_OTLP_HEADERS (Authorization=...)
- * - If exporting to a same-origin proxy (recommended for production, e.g. /api/otlp on Vercel),
- *   only VITE_OTEL_EXPORTER_OTLP_ENDPOINT is needed; auth is injected server-side.
+ * - Frontend always exports via same-origin proxy endpoint `/api/otlp`.
+ * - Backend proxy injects auth server-side to avoid CORS and credential exposure.
  */
 
 const noop = () => {};
@@ -26,66 +24,32 @@ function withSource(source, attrs = {}) {
   return { source, ...attrs };
 }
 
-function parseHeaders(headersStr) {
-  const headers = {};
-  if (!headersStr) return headers;
-
-  String(headersStr)
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .forEach((part) => {
-      const eq = part.indexOf('=');
-      if (eq > 0) {
-        const key = part.slice(0, eq).trim();
-        const raw = part.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-        let value = raw;
-        try {
-          value = decodeURIComponent(raw);
-        } catch {
-          // keep raw
-        }
-        headers[key] = value;
-      }
-    });
-
-  return headers;
-}
-
 /**
  * Call once at app startup (main.jsx). Safe to fire-and-forget.
  */
 export async function initVoiceOrderMetrics() {
-  const endpoint =
+  const endpointRaw =
     typeof import.meta !== 'undefined' &&
     import.meta.env &&
     import.meta.env.VITE_OTEL_EXPORTER_OTLP_ENDPOINT;
-  const headersStr =
-    typeof import.meta !== 'undefined' &&
-    import.meta.env &&
-    import.meta.env.VITE_OTEL_EXPORTER_OTLP_HEADERS;
   const metricsSource =
     (typeof import.meta !== 'undefined' &&
       import.meta.env &&
       import.meta.env.VITE_METRICS_SOURCE) ||
     'app_ui';
 
-  if (!endpoint) return;
+  if (!endpointRaw) return;
 
-  const isRelativeEndpoint = typeof endpoint === 'string' && endpoint.startsWith('/');
-  if (!isRelativeEndpoint && !headersStr) {
-    // Cross-origin export requires Authorization header client-side
-    return;
-  }
+  const endpoint =
+    typeof endpointRaw === 'string' && endpointRaw.startsWith('/') ? endpointRaw : '/api/otlp';
 
   try {
     const { MeterProvider, PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');
     const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http');
 
-    const headers = parseHeaders(headersStr);
     const url = String(endpoint).replace(/\/?$/, '').replace(/\/v1\/metrics\/?$/, '') + '/v1/metrics';
 
-    const exporter = new OTLPMetricExporter({ url, headers });
+    const exporter = new OTLPMetricExporter({ url });
     const reader = new PeriodicExportingMetricReader({
       exporter,
       exportIntervalMillis: 10000

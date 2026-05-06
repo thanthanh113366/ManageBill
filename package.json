@@ -18,7 +18,9 @@
     "export:training": "node scripts/export-bills-training.js",
     "count:bills": "node scripts/count-bills-by-date.js",
     "export:menu-names": "node scripts/export-menu-names.js",
-    "metrics:test:voice": "node scripts/test-voice-metrics-from-dataset.js"
+    "metrics:test:voice": "node scripts/test-voice-metrics-from-dataset.js",
+    "seed:expense-categories": "node scripts/seed-expense-categories.js",
+    "seed:from-hihi": "node scripts/seed-from-hihi.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",

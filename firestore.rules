@@ -54,5 +54,32 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;  // Chỉ admin qua backend
     }
+
+    // ===== Module quản lý vốn hàng ngày & P&L =====
+    // Note: Production cần siết write theo auth (đồng bộ với menuItems/bills hiện tại).
+
+    // Danh mục nguyên liệu / chi phí (cogs, opex_variable, opex_fixed)
+    match /expenseCategories/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Phiếu chi mỗi ngày (đi chợ + chi biến đổi)
+    match /dailyExpenses/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Chi phí cố định theo tháng (lương, mặt bằng, internet...)
+    match /monthlyFixedCosts/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Cài đặt P&L (taxRate, taxMode, depreciationMonthly, otherReservePercent)
+    match /pnlSettings/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 } 

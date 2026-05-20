@@ -31,6 +31,8 @@ import {
   Coins,
 } from 'lucide-react';
 import { formatVND } from '../utils/pnlCalculations';
+import { parseMoneyExpression } from '../utils/parseMoneyExpression';
+import ExpressionAmountInput from '../components/ExpressionAmountInput';
 
 const KIND_LABEL = {
   cogs: 'Đi chợ',
@@ -156,11 +158,12 @@ const DailyExpenses = () => {
       toast.error('Hãy chọn danh mục');
       return;
     }
-    const amountNum = Number(formAmount);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    const parsed = parseMoneyExpression(formAmount);
+    if (!parsed.ok || parsed.value <= 0) {
       toast.error('Số tiền không hợp lệ');
       return;
     }
+    const amountNum = parsed.value;
     const cat = activeCategories.find((c) => c.id === formCategoryId);
     if (!cat) {
       toast.error('Danh mục không tồn tại');
@@ -388,16 +391,11 @@ const DailyExpenses = () => {
             </div>
             <div className="sm:col-span-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">Số tiền (₫) *</label>
-              <input
+              <ExpressionAmountInput
                 ref={amountInputRef}
-                type="number"
-                inputMode="numeric"
-                step="1000"
-                min="0"
                 value={formAmount}
-                onChange={(e) => setFormAmount(e.target.value)}
-                placeholder="VD: 280000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+                onChange={setFormAmount}
+                placeholder="VD: 280000+50000"
               />
             </div>
             <div className="sm:col-span-4">

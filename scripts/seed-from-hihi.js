@@ -42,7 +42,8 @@ const CATEGORY_MAP = {
   'sốt': { kind: 'cogs', name: 'Nước sốt' },
   'giải khát': { kind: 'cogs', name: 'Giải khát' },
   'nhân công': { kind: 'opex_variable', name: 'Nhân công' },
-  'chợ nhà': { kind: 'owner_draw', name: 'Chi tiêu cá nhân khác' },
+  'chợ nhà': { kind: 'owner_draw', name: 'Chợ nhà' },
+  'ngân hàng': { kind: 'owner_draw', name: 'Đóng ngân hàng' },
 };
 
 const SKIP_CATEGORIES = new Set(['bán vàng']);

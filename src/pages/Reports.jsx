@@ -3,7 +3,7 @@ import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { getBillCostTotalsForReport } from '../utils/billCostTotals';
-import { computePnL, formatVND, formatPercent } from '../utils/pnlCalculations';
+import { computePnL, groupPnLByPeriod, formatVND, formatPercent } from '../utils/pnlCalculations';
 import {
   BarChart,
   Bar,
@@ -202,6 +202,11 @@ const Reports = () => {
     endDate,
   ]);
 
+  const pnlByPeriod = useMemo(() => {
+    if (!pnl) return [];
+    return groupPnLByPeriod(pnl.byDay, periodType, pnlSettings);
+  }, [pnl, periodType, pnlSettings]);
+
   const groupDataByPeriod = (billsArr, period, menuItemsArg, orderItemsArg) => {
     const groups = {};
     billsArr.forEach((bill) => {
@@ -257,9 +262,6 @@ const Reports = () => {
     }
   };
 
-  const formatDateLabel = (iso) =>
-    new Date(iso).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' });
-
   const ClassicTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const dataRow = reportData.find((row) => row.period === label);
@@ -285,11 +287,11 @@ const Reports = () => {
 
   const PnlTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
-      const row = pnl?.byDay.find((r) => r.date === label);
+      const row = pnlByPeriod.find((r) => r.period === label);
       if (!row) return null;
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg text-sm">
-          <p className="font-semibold text-gray-900 mb-2">{formatDateLabel(label)}</p>
+          <p className="font-semibold text-gray-900 mb-2">{formatPeriodLabel(label)}</p>
           <div className="space-y-1">
             <p className="text-green-600">Doanh thu: {formatCurrency(row.revenue)}</p>
             <p className="text-orange-600">- Vốn (đi chợ): {formatCurrency(row.cogsActual)}</p>
@@ -391,11 +393,13 @@ const Reports = () => {
       {activeTab === 'pnl' ? (
         <PnLDashboard
           pnl={pnl}
+          pnlByPeriod={pnlByPeriod}
+          periodType={periodType}
           loading={loading}
           showTheoretical={showTheoretical}
           setShowTheoretical={setShowTheoretical}
           PnlTooltip={PnlTooltip}
-          formatDateLabel={formatDateLabel}
+          formatPeriodLabel={formatPeriodLabel}
         />
       ) : (
         <ClassicSection
@@ -411,9 +415,12 @@ const Reports = () => {
   );
 };
 
-const PnLDashboard = ({ pnl, loading, showTheoretical, setShowTheoretical, PnlTooltip, formatDateLabel }) => {
+const PNL_PERIOD_LABEL = { day: 'ngày', week: 'tuần', month: 'tháng' };
+
+const PnLDashboard = ({ pnl, pnlByPeriod, periodType, loading, showTheoretical, setShowTheoretical, PnlTooltip, formatPeriodLabel }) => {
   if (!pnl) return null;
   const totals = pnl.totals;
+  const periodLabel = PNL_PERIOD_LABEL[periodType] || 'kỳ';
 
   const cogsByCategory = pnl.byCategory.filter((c) => c.kind === 'cogs');
   const opexByCategory = pnl.byCategory.filter((c) => c.kind === 'opex_variable' || c.kind === 'opex_fixed');
@@ -486,15 +493,15 @@ const PnLDashboard = ({ pnl, loading, showTheoretical, setShowTheoretical, PnlTo
 
       {/* Stacked bar */}
       <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Cấu trúc P&L theo ngày</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Cấu trúc P&L theo {periodLabel}</h2>
         {loading ? (
           <div className="h-80 animate-pulse bg-gray-100 rounded" />
         ) : (
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={pnl.byDay}>
+              <BarChart data={pnlByPeriod}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickFormatter={formatDateLabel} angle={-30} textAnchor="end" height={60} />
+                <XAxis dataKey="period" tickFormatter={formatPeriodLabel} angle={-30} textAnchor="end" height={60} />
                 <YAxis
                   tickFormatter={(v) =>
                     new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(v)
@@ -515,15 +522,15 @@ const PnLDashboard = ({ pnl, loading, showTheoretical, setShowTheoretical, PnlTo
 
       {/* Lợi nhuận thực theo ngày (line) */}
       <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Xu hướng lợi nhuận thực</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Xu hướng lợi nhuận thực theo {periodLabel}</h2>
         {loading ? (
           <div className="h-72 animate-pulse bg-gray-100 rounded" />
         ) : (
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={pnl.byDay}>
+              <LineChart data={pnlByPeriod}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickFormatter={formatDateLabel} angle={-30} textAnchor="end" height={60} />
+                <XAxis dataKey="period" tickFormatter={formatPeriodLabel} angle={-30} textAnchor="end" height={60} />
                 <YAxis
                   tickFormatter={(v) =>
                     new Intl.NumberFormat('vi-VN', { notation: 'compact', compactDisplay: 'short' }).format(v)
@@ -543,13 +550,13 @@ const PnLDashboard = ({ pnl, loading, showTheoretical, setShowTheoretical, PnlTo
       {/* Bảng chi tiết */}
       <div className="bg-white rounded-lg shadow-sm border">
         <div className="px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">Chi tiết theo ngày</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Chi tiết theo {periodLabel}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <Th>Ngày</Th>
+                <Th>Kỳ</Th>
                 <Th align="right">Đơn</Th>
                 <Th align="right">Doanh thu</Th>
                 <Th align="right">Vốn (đi chợ)</Th>
@@ -575,9 +582,9 @@ const PnLDashboard = ({ pnl, loading, showTheoretical, setShowTheoretical, PnlTo
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {pnl.byDay.map((row) => (
-                <tr key={row.date} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900">{row.date}</td>
+              {pnlByPeriod.map((row) => (
+                <tr key={row.period} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900">{formatPeriodLabel(row.period)}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-right">{row.bills}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-right text-green-700">{formatVND(row.revenue)}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-right text-orange-700">{formatVND(row.cogsActual)}</td>

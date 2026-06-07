@@ -323,6 +323,72 @@ export const computePnL = ({
   };
 };
 
+const getPeriodKeyFromDate = (dateStr, periodType) => {
+  const date = new Date(dateStr);
+  switch (periodType) {
+    case 'day':
+      return dateStr;
+    case 'week': {
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay());
+      return weekStart.toISOString().split('T')[0];
+    }
+    case 'month':
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    default:
+      return dateStr;
+  }
+};
+
+const derivePnLRow = (row, settings) => {
+  const reservePct = toNumber(settings?.otherReservePercent) / 100;
+  const grossProfit = row.revenue - row.cogsActual;
+  const grossMargin = row.revenue > 0 ? grossProfit / row.revenue : 0;
+  const ebt = grossProfit - row.opexVariable - row.opexFixed - row.depreciation;
+  const tax = computeTax(row.revenue, ebt, settings);
+  const reserve = Math.max(0, row.revenue) * reservePct;
+  const netIncome = ebt - tax - reserve;
+  const retainedProfit = netIncome - row.ownerDraw;
+  const costVariance = row.cogsActual - row.cogsTheoretical;
+  return {
+    ...row,
+    grossProfit,
+    grossMargin,
+    netOperatingProfit: ebt,
+    tax,
+    reserve,
+    netIncome,
+    retainedProfit,
+    costVariance,
+  };
+};
+
+/**
+ * Gom byDay theo periodType (day/week/month) — cùng key với groupDataByPeriod.
+ * Sum field gốc, tính lại derived giống bước 5 computePnL.
+ */
+export const groupPnLByPeriod = (byDay = [], periodType = 'day', settings = {}) => {
+  const groups = new Map();
+  for (const row of byDay) {
+    const key = getPeriodKeyFromDate(row.date, periodType);
+    if (!groups.has(key)) {
+      groups.set(key, { period: key, ...emptyKpi() });
+    }
+    const g = groups.get(key);
+    g.revenue += row.revenue;
+    g.cogsActual += row.cogsActual;
+    g.cogsTheoretical += row.cogsTheoretical;
+    g.opexVariable += row.opexVariable;
+    g.opexFixed += row.opexFixed;
+    g.depreciation += row.depreciation;
+    g.ownerDraw += row.ownerDraw;
+    g.bills += row.bills;
+  }
+  return Array.from(groups.values())
+    .sort((a, b) => a.period.localeCompare(b.period))
+    .map((row) => derivePnLRow(row, settings));
+};
+
 /**
  * Helper format VND.
  */

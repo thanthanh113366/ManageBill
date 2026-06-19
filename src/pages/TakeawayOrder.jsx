@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { toast } from 'react-toastify';
 import { Plus, Minus, ChevronDown, ChevronUp, MessageSquare, X, ShoppingBag } from 'lucide-react';
@@ -147,24 +147,20 @@ const TakeawayOrder = () => {
     return () => { document.body.style.overflow = ''; };
   }, [showConfirmModal]);
 
-  // ── Load orderItems ──
+  // ── Load orderItems (one-time read) ──
   useEffect(() => {
     const q = query(collection(db, 'orderItems'), orderBy('category'), orderBy('name'));
-    return onSnapshot(
-      q,
-      (snap) => { setOrderItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingOrderItems(false); },
-      (err) => { console.error(err); toast.error('Không thể tải menu. Vui lòng thử lại!'); setLoadingOrderItems(false); }
-    );
+    getDocs(q)
+      .then((snap) => { setOrderItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingOrderItems(false); })
+      .catch((err) => { console.error(err); toast.error('Không thể tải menu. Vui lòng thử lại!'); setLoadingOrderItems(false); });
   }, []);
 
-  // ── Load menuItems ──
+  // ── Load menuItems (one-time read) ──
   useEffect(() => {
     const q = query(collection(db, 'menuItems'), orderBy('category'), orderBy('name'));
-    return onSnapshot(
-      q,
-      (snap) => { setMenuItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingMenuItems(false); },
-      (err) => { console.error(err); toast.error('Không thể tải thông tin giá. Vui lòng thử lại!'); setLoadingMenuItems(false); }
-    );
+    getDocs(q)
+      .then((snap) => { setMenuItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingMenuItems(false); })
+      .catch((err) => { console.error(err); toast.error('Không thể tải thông tin giá. Vui lòng thử lại!'); setLoadingMenuItems(false); });
   }, []);
 
   // ── Scrollspy ──

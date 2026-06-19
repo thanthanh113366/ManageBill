@@ -8,7 +8,7 @@ import { calculateKitchenQueue, filterByTable, calculateKitchenStats } from '../
  * Custom hook để quản lý đơn hàng bếp real-time
  */
 export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
-  const { tables } = useApp();
+  const { tables, orderItems: contextOrderItems } = useApp();
   const [bills, setBills] = useState([]);
   const [menuTimings, setMenuTimings] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
@@ -77,27 +77,10 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
     return () => unsubscribeTimings();
   }, []);
 
-  // Load order items (chỉ load 1 lần)
+  // Use orderItems from AppContext instead of opening a separate listener
   useEffect(() => {
-    const orderItemsQuery = query(collection(db, 'orderItems'));
-
-    const unsubscribeOrderItems = onSnapshot(
-      orderItemsQuery,
-      (snapshot) => {
-        const orderItemsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setOrderItems(orderItemsData);
-      },
-      (error) => {
-        console.error('Error loading order items:', error);
-        setError('Lỗi tải danh sách món đặt hàng');
-      }
-    );
-
-    return () => unsubscribeOrderItems();
-  }, []);
+    setOrderItems(contextOrderItems);
+  }, [contextOrderItems]);
 
   // Tính toán kitchen queue khi có thay đổi
   // Không chờ menuTimings — nếu rỗng, calculateKitchenQueue tự fallback sang orderItems

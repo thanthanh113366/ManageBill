@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Clock, Receipt, CheckCircle, ArrowLeftRight, ChevronDown, X, UtensilsCrossed } from 'lucide-react';
 
@@ -22,46 +22,38 @@ const PublicBill = () => {
     setDefaultQR(savedQR);
   }, []);
 
-  // Load tables for table switching
+  // Load tables for table switching (one-time read)
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      query(collection(db, 'tables'), orderBy('number')), 
-      (snapshot) => {
+    getDocs(query(collection(db, 'tables'), orderBy('number')))
+      .then((snapshot) => {
         const tablesData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
         setTables(tablesData);
-      }
-    );
-
-    return () => unsubscribe();
+      });
   }, []);
 
-  // Load menu items for reference
+  // Load menu items for reference (one-time read)
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'menuItems'), (snapshot) => {
+    getDocs(collection(db, 'menuItems')).then((snapshot) => {
       const items = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setMenuItems(items);
     });
-
-    return () => unsubscribe();
   }, []);
 
-  // Load order items for reference
+  // Load order items for reference (one-time read)
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'orderItems'), (snapshot) => {
+    getDocs(collection(db, 'orderItems')).then((snapshot) => {
       const items = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setOrderItems(items);
     });
-
-    return () => unsubscribe();
   }, []);
 
   // Load current bill for table

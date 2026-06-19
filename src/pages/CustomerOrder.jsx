@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { toast } from 'react-toastify';
 import { Plus, Minus, ChevronDown, ChevronUp, MessageSquare, X, ShoppingCart } from 'lucide-react';
@@ -180,26 +180,20 @@ const CustomerOrder = () => {
 
   const isLoading = loadingOrderItems || loadingMenuItems;
 
-  // ── Load orderItems ──
+  // ── Load orderItems (one-time read) ──
   useEffect(() => {
     const q = query(collection(db, 'orderItems'), orderBy('category'), orderBy('name'));
-    const unsub = onSnapshot(
-      q,
-      (snap) => { setOrderItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingOrderItems(false); },
-      (err) => { console.error(err); toast.error('Không thể tải menu. Vui lòng thử lại!'); setLoadingOrderItems(false); }
-    );
-    return () => unsub();
+    getDocs(q)
+      .then((snap) => { setOrderItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingOrderItems(false); })
+      .catch((err) => { console.error(err); toast.error('Không thể tải menu. Vui lòng thử lại!'); setLoadingOrderItems(false); });
   }, []);
 
-  // ── Load menuItems ──
+  // ── Load menuItems (one-time read) ──
   useEffect(() => {
     const q = query(collection(db, 'menuItems'), orderBy('category'), orderBy('name'));
-    const unsub = onSnapshot(
-      q,
-      (snap) => { setMenuItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingMenuItems(false); },
-      (err) => { console.error(err); toast.error('Không thể tải thông tin giá. Vui lòng thử lại!'); setLoadingMenuItems(false); }
-    );
-    return () => unsub();
+    getDocs(q)
+      .then((snap) => { setMenuItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoadingMenuItems(false); })
+      .catch((err) => { console.error(err); toast.error('Không thể tải thông tin giá. Vui lòng thử lại!'); setLoadingMenuItems(false); });
   }, []);
 
   // ── Load đơn hiện tại của bàn ──

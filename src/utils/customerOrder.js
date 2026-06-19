@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 /**
@@ -6,10 +6,8 @@ import { db } from '../config/firebase';
  */
 export const testFirestoreConnection = async () => {
   try {
-    // Try to read from a collection
-    const testQuery = query(collection(db, 'bills'));
-    const snapshot = await getDocs(testQuery);
-    
+    const testQuery = query(collection(db, 'bills'), limit(1));
+    await getDocs(testQuery);
     return true;
   } catch (error) {
     console.error('Firestore connection test failed:', error);

@@ -4,7 +4,7 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { toast } from 'react-toastify';
 import { Plus, Minus, ChevronDown, ChevronUp, MessageSquare, X, ShoppingCart } from 'lucide-react';
-import { submitCustomerOrder, testFirestoreConnection, getActiveBillForTable } from '../utils/customerOrder';
+import { submitCustomerOrder, getActiveBillForTable } from '../utils/customerOrder';
 import { calculateOrderItemTotals } from '../utils/billCalculations';
 
 // Bỏ "Tất cả" — mỗi category là 1 section cuộn tới
@@ -313,8 +313,6 @@ const CustomerOrder = () => {
     setIsSubmitting(true);
     try {
       const billItems = summary.items.map(({ orderItemId, quantity }) => ({ orderItemId, quantity }));
-      const ok = await testFirestoreConnection();
-      if (!ok) throw new Error('Firestore connection failed');
       await submitCustomerOrder(
         tableNumber,
         billItems,
@@ -322,7 +320,8 @@ const CustomerOrder = () => {
         summary.totalProfit,
         note,
         summary.totalCost,
-        summary.totalFixedCost
+        summary.totalFixedCost,
+        existingBill  // dùng bill đã load sẵn từ state, tránh query Firestore lại
       );
       if (isTakeawayTable && existingBill?.takeawayNumber) {
         navigate(`/order-success/MV-${existingBill.takeawayNumber}`);

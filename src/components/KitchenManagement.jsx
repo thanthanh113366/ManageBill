@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, ChefHat, Trash2, CheckCircle, Plus } from 'lucide-react';
+import { X, ChefHat, CheckCircle, Plus } from 'lucide-react';
 import { useKitchenOrders } from '../hooks/useKitchenOrders';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -185,7 +185,6 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     error,
     completeCooking,
     undoCompleted,
-    deleteAllMenuItemTimings,
     clearError,
   } = useKitchenOrders(null, selectedDate);
 
@@ -286,13 +285,6 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     );
   };
 
-  const handleDeleteAll = async () => {
-    if (window.confirm('Xóa TẤT CẢ menuItemTimings?\nHành động này KHÔNG THỂ HOÀN TÁC!')) {
-      const r = await deleteAllMenuItemTimings();
-      alert(r.success ? `✅ Đã xóa ${r.count} records` : '❌ Có lỗi xảy ra');
-    }
-  };
-
   // Đếm số món chưa xong cho tab badge
   const countByType = (type) =>
     kitchenQueue.filter(i => {
@@ -342,14 +334,6 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
               );
             })}
           </div>
-
-          <button
-            onClick={handleDeleteAll}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Dọn dẹp DB"
-          >
-            <Trash2 size={15} />
-          </button>
 
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full">
             <X className="w-5 h-5 text-gray-500" />

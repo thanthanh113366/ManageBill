@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 /**
@@ -43,10 +43,8 @@ export const getActiveBillForTable = async (tableNumber) => {
 };
 
 /**
- * Submit order — 1 batch write cho bill + timings (atomic).
- * 
- * Nếu bàn đã có bill pending → merge thêm món. Ngược lại → tạo bill mới.
- * Timings luôn được tạo trong cùng batch với bill, đảm bảo all-or-nothing.
+ * Submit order — ghi bill (tạo mới hoặc merge vào bill pending).
+ * Kitchen tự động đọc speed/kitchenType/priority từ orderItems, không cần timing doc.
  * 
  * @param {number|string} tableNumber
  * @param {Array} items - [{ orderItemId, quantity }]
@@ -137,25 +135,14 @@ export const submitCustomerOrder = async (
     billId = billRef.id;
   }
 
-  // ── Timings trong cùng batch ──
-  for (const item of items) {
-    if (!item.orderItemId) continue;
-    batch.set(doc(collection(db, 'menuItemTimings')), {
-      orderItemId: item.orderItemId,
-      billId,
-      createdAt: new Date(),
-      autoCreated: true,
-    });
-  }
-
   await batch.commit();
   return billId;
 };
 
 
 /**
- * Tạo đơn hàng mang về — 1 batch write cho bill + timings.
- * @returns {number} takeawayNumber — số thứ tự đơn mang về hôm nay
+ * Tạo đơn hàng mang về — ghi bill, đánh số thứ tự trong ngày.
+ * @returns {number} takeawayNumber
  */
 export const createTakeawayOrder = async (
   items,
@@ -172,10 +159,7 @@ export const createTakeawayOrder = async (
   );
   const takeawayNumber = snap.size + 1;
 
-  const batch = writeBatch(db);
-  const billRef = doc(collection(db, 'bills'));
-
-  batch.set(billRef, {
+  await addDoc(collection(db, 'bills'), {
     createdAt: serverTimestamp(),
     date: today,
     tableNumber: 9000 + takeawayNumber,
@@ -190,17 +174,6 @@ export const createTakeawayOrder = async (
     ...(note?.trim() ? { note: note.trim() } : {}),
   });
 
-  for (const item of items) {
-    if (!item.orderItemId) continue;
-    batch.set(doc(collection(db, 'menuItemTimings')), {
-      orderItemId: item.orderItemId,
-      billId: billRef.id,
-      createdAt: new Date(),
-      autoCreated: true,
-    });
-  }
-
-  await batch.commit();
   return takeawayNumber;
 };
 

@@ -53,25 +53,15 @@ export const calculateEstimatedTime = (item, timing) => {
 };
 
 /**
- * Sắp xếp danh sách món theo thứ tự tối ưu
- * 
- * TIMING PRIORITY (đã sửa):
- * 1. menuItemTimings (PRIMARY) - có thể được admin customize
- * 2. orderItems (FALLBACK) - timing mặc định từ migration
+ * Sắp xếp danh sách món theo thứ tự tối ưu.
+ * Đọc speed/kitchenType/priority trực tiếp từ orderItems.
  * 
  * @param {Array} bills - Danh sách bills
- * @param {Array} menuTimings - Danh sách timing của menu items (PRIMARY SOURCE)
- * @param {Array} orderItems - Danh sách order items (FALLBACK SOURCE)
+ * @param {Array} orderItems - Danh sách order items
  * @returns {Array} - Danh sách món đã sắp xếp theo ưu tiên
  */
-export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) => {
+export const calculateKitchenQueue = (bills, orderItems = []) => {
   const currentTime = new Date();
-
-  // Map timing từ menuItemTimings (nguồn chính, do admin customize) — chỉ dùng orderItemId
-  const timingMap = new Map();
-  menuTimings.forEach(timing => {
-    if (timing.orderItemId) timingMap.set(timing.orderItemId, timing);
-  });
   
   // Map orderItems để lookup nhanh theo ID
   const orderItemsMap = new Map();
@@ -122,15 +112,8 @@ export const calculateKitchenQueue = (bills, menuTimings = [], orderItems = []) 
           // Tìm orderItem theo orderItemId
           const orderItem = orderItemsMap.get(item.orderItemId);
 
-          // Tìm timing: ưu tiên menuItemTimings (admin customize), fallback sang orderItem
-          const menuTiming = timingMap.get(item.orderItemId);
-          const timing = menuTiming
-            ? {
-                speed: menuTiming.speed || 'medium',
-                kitchenType: menuTiming.kitchenType || 'cook',
-                priority: menuTiming.priority || 1,
-              }
-            : orderItem
+          // Lấy speed/kitchenType/priority trực tiếp từ orderItem
+          const timing = orderItem
             ? {
                 speed: orderItem.speed || 'medium',
                 kitchenType: orderItem.kitchenType || 'cook',

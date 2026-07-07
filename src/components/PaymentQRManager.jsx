@@ -8,7 +8,8 @@ import { CheckCircle, Image as ImageIcon } from 'lucide-react';
 const PaymentQRManager = () => {
   const QR_OPTIONS = [
     { id: 'qr1', name: 'Mã QR Trân', path: '/my_qr_1.jpg' },
-    { id: 'qr2', name: 'Mã QR Trúc', path: '/my_qr_2.jpg' }
+    { id: 'qr2', name: 'Mã QR Trúc', path: '/my_qr_2.jpg' },
+    { id: 'qr3', name: 'Mã QR 3', path: '/my_qr_3.jpg' }
   ];
 
   const [defaultQR, setDefaultQR] = useState(() => {

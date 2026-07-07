@@ -457,13 +457,13 @@ const PublicBill = () => {
               <img
                 src={defaultQR}
                 alt="QR Code thanh toán"
-                className="w-48 h-48 object-contain border border-gray-200 rounded-lg"
+                className="w-full h-auto object-contain border border-gray-200 rounded-lg"
                 onError={(e) => {
                   e.target.style.display = 'none';
                   e.target.nextSibling.style.display = 'block';
                 }}
               />
-              <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-sm" style={{display: 'none'}}>
+              <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-sm" style={{display: 'none'}}>
                 QR Code không khả dụng
               </div>
             </div>

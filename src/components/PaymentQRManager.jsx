@@ -61,14 +61,14 @@ const PaymentQRManager = () => {
               <img
                 src={qr.path}
                 alt={qr.name}
-                className="w-40 h-40 object-contain border border-gray-200 rounded-lg"
+                className="w-72 h-72 object-contain border border-gray-200 rounded-lg"
                 onError={(e) => {
                   e.target.style.display = 'none';
                   e.target.nextSibling.style.display = 'flex';
                 }}
               />
               <div
-                className="w-40 h-40 bg-gray-100 rounded-lg flex-col items-center justify-center text-gray-400"
+                className="w-72 h-72 bg-gray-100 rounded-lg flex-col items-center justify-center text-gray-400"
                 style={{ display: 'none' }}
               >
                 <ImageIcon size={32} className="mb-2" />

@@ -1,21 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CheckCircle, Image as ImageIcon } from 'lucide-react';
 
-/**
- * Component quản lý mã QR thanh toán
- * Cho phép chọn 1 trong 3 mã QR làm mặc định
- */
-const PaymentQRManager = () => {
-  const QR_OPTIONS = [
-    { id: 'qr1', name: 'Mã QR Trân', path: '/my_qr_1.jpg' },
-    { id: 'qr2', name: 'Mã QR Trúc', path: '/my_qr_2.jpg' },
-    { id: 'qr3', name: 'Mã QR 3', path: '/my_qr_3.jpg' }
-  ];
+const QR_OPTIONS = [
+  { id: 'qr1', name: 'QR Trân', path: '/my_qr_1.jpg' },
+  { id: 'qr2', name: 'QR Trúc', path: '/my_qr_2.jpg' },
+  { id: 'qr3', name: 'QR 3', path: '/my_qr_3.jpg' },
+];
 
-  const [defaultQR, setDefaultQR] = useState(() => {
-    // Load from localStorage
-    return localStorage.getItem('defaultPaymentQR') || '/my_qr_1.jpg';
-  });
+const PaymentQRManager = () => {
+  const [defaultQR, setDefaultQR] = useState(() => localStorage.getItem('defaultPaymentQR') || '/my_qr_1.jpg');
 
   const handleSetDefault = (qrPath) => {
     setDefaultQR(qrPath);
@@ -23,86 +16,71 @@ const PaymentQRManager = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Quản lý mã QR thanh toán
-        </h3>
-        <p className="text-sm text-gray-600">
-          Chọn mã QR mặc định để hiển thị cho khách hàng khi xem hóa đơn
+    <section className="surface-card">
+      <div className="mb-5">
+        <p className="section-kicker">Thanh toán</p>
+        <h2 className="mt-1 text-xl font-semibold text-slate-950">QR thanh toán mặc định</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Chọn mã QR sẽ hiển thị cho khách khi xem hóa đơn.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {QR_OPTIONS.map((qr) => (
-          <div
-            key={qr.id}
-            className={`relative border-2 rounded-lg p-4 transition-all ${
-              defaultQR === qr.path
-                ? 'border-indigo-500 bg-indigo-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            {/* Badge mặc định */}
-            {defaultQR === qr.path && (
-              <div className="absolute top-2 right-2 bg-indigo-600 text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1">
-                <CheckCircle size={12} />
-                Mặc định
-              </div>
-            )}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {QR_OPTIONS.map((qr) => {
+          const active = defaultQR === qr.path;
 
-            {/* Tên mã QR */}
-            <div className="text-center mb-3">
-              <h4 className="font-semibold text-gray-900">{qr.name}</h4>
-            </div>
-
-            {/* Ảnh QR */}
-            <div className="flex justify-center mb-4">
-              <img
-                src={qr.path}
-                alt={qr.name}
-                className="w-72 h-72 object-contain border border-gray-200 rounded-lg"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
-              />
-              <div
-                className="w-72 h-72 bg-gray-100 rounded-lg flex-col items-center justify-center text-gray-400"
-                style={{ display: 'none' }}
-              >
-                <ImageIcon size={32} className="mb-2" />
-                <span className="text-xs">Không tải được ảnh</span>
-              </div>
-            </div>
-
-            {/* Nút chọn mặc định */}
-            <button
-              onClick={() => handleSetDefault(qr.path)}
-              disabled={defaultQR === qr.path}
-              className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-                defaultQR === qr.path
-                  ? 'bg-indigo-600 text-white cursor-default'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          return (
+            <article
+              key={qr.id}
+              className={`relative rounded-lg border p-4 transition ${
+                active
+                  ? 'border-[var(--primary-300)] bg-[var(--primary-50)] ring-2 ring-[var(--primary-100)]'
+                  : 'border-slate-200 bg-white hover:border-[var(--primary-200)]'
               }`}
             >
-              {defaultQR === qr.path ? 'Đang sử dụng' : 'Đặt làm mặc định'}
-            </button>
-          </div>
-        ))}
+              {active && (
+                <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-[var(--primary-600)] px-2 py-1 text-xs font-semibold text-white">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Mặc định
+                </span>
+              )}
+
+              <h3 className="mb-3 pr-24 text-center font-semibold text-slate-950">{qr.name}</h3>
+
+              <div className="mb-4 flex justify-center">
+                <img
+                  src={qr.path}
+                  alt={qr.name}
+                  className="h-64 w-64 rounded-lg border border-slate-200 bg-white object-contain"
+                  onError={(event) => {
+                    event.currentTarget.style.display = 'none';
+                    event.currentTarget.nextSibling.style.display = 'flex';
+                  }}
+                />
+                <div className="hidden h-64 w-64 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-400">
+                  <ImageIcon className="mb-2 h-8 w-8" />
+                  <span className="text-xs">Không tải được ảnh</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSetDefault(qr.path)}
+                disabled={active}
+                className={active ? 'btn-primary w-full justify-center' : 'btn-secondary w-full justify-center'}
+              >
+                {active ? 'Đang sử dụng' : 'Đặt làm mặc định'}
+              </button>
+            </article>
+          );
+        })}
       </div>
 
-      {/* Thông tin */}
-      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800">
-          <strong>💡 Lưu ý:</strong> Mã QR mặc định sẽ được hiển thị cho khách hàng 
-          khi họ xem hóa đơn trên trang thanh toán. Bạn có thể thay đổi mã mặc định 
-          bất cứ lúc nào bằng cách nhấn nút "Đặt làm mặc định".
-        </p>
+      <div className="mt-5 rounded-lg border border-sky-100 bg-sky-50 p-4 text-sm text-sky-800">
+        QR mặc định được lưu trên trình duyệt hiện tại và dùng cho trang hóa đơn khách hàng.
       </div>
-    </div>
+    </section>
   );
 };
 
 export default PaymentQRManager;
-

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { ArrowLeftRight, CheckCircle, ChevronRight, Clock, Receipt, UtensilsCrossed, X } from 'lucide-react';
 import { db } from '../config/firebase';
-import { Clock, Receipt, CheckCircle, ArrowLeftRight, ChevronDown, X, UtensilsCrossed } from 'lucide-react';
+import { StatusPill } from '../components/ui';
 import { getVietnamDateString } from '../utils/businessDate';
+import { formatCurrency } from '../components/PublicOrderComponents';
 
 const PublicBill = () => {
   const { tableNumber } = useParams();
@@ -16,515 +18,348 @@ const PublicBill = () => {
   const [tables, setTables] = useState([]);
   const [showTableSwitcher, setShowTableSwitcher] = useState(false);
   const [defaultQR, setDefaultQR] = useState('/my_qr_1.jpg');
+  const [qrBroken, setQrBroken] = useState(false);
 
-  // Load default QR from localStorage
   useEffect(() => {
-    const savedQR = localStorage.getItem('defaultPaymentQR') || '/my_qr_1.jpg';
-    setDefaultQR(savedQR);
+    setDefaultQR(localStorage.getItem('defaultPaymentQR') || '/my_qr_1.jpg');
   }, []);
 
-  // Load tables for table switching (one-time read)
   useEffect(() => {
     getDocs(query(collection(db, 'tables'), orderBy('number')))
-      .then((snapshot) => {
-        const tablesData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setTables(tablesData);
-      });
+      .then((snapshot) => setTables(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))))
+      .catch((error) => console.error(error));
   }, []);
 
-  // Load menu items for reference (one-time read)
   useEffect(() => {
-    getDocs(collection(db, 'menuItems')).then((snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setMenuItems(items);
-    });
+    getDocs(collection(db, 'menuItems'))
+      .then((snapshot) => setMenuItems(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))))
+      .catch((error) => console.error(error));
   }, []);
 
-  // Load order items for reference (one-time read)
   useEffect(() => {
-    getDocs(collection(db, 'orderItems')).then((snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setOrderItems(items);
-    });
+    getDocs(collection(db, 'orderItems'))
+      .then((snapshot) => setOrderItems(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))))
+      .catch((error) => console.error(error));
   }, []);
 
-  // Load current bill for table
   useEffect(() => {
-    if (!tableNumber) return;
+    if (!tableNumber) return undefined;
 
     const today = getVietnamDateString();
+    const q = query(collection(db, 'bills'), where('date', '==', today));
 
-    // Query tất cả bills của ngày hôm nay (không filter tableNumber trong query)
-    const q = query(
-      collection(db, 'bills'),
-      where('date', '==', today)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const allBillsToday = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      // Filter manually để hỗ trợ cả string và number
-      const bills = allBillsToday.filter(bill => {
-          // So sánh tableNumber: hỗ trợ cả string và number
-          const billTableNumber = bill.tableNumber;
-          const targetTableNumber = parseInt(tableNumber);
-          
-          return billTableNumber === targetTableNumber || 
-                 billTableNumber === tableNumber ||
-                 String(billTableNumber) === String(targetTableNumber);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const allBillsToday = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const targetTableNumber = parseInt(tableNumber, 10);
+        const matchingBills = allBillsToday.filter((candidate) => {
+          const billTableNumber = candidate.tableNumber;
+          return (
+            billTableNumber === targetTableNumber ||
+            billTableNumber === tableNumber ||
+            String(billTableNumber) === String(targetTableNumber)
+          );
         });
-      
-      // Filter chỉ bills chưa thanh toán (hoặc chưa có status field)
-      const pendingBills = bills.filter(bill => 
-        !bill.status || bill.status === 'pending'
-      );
-      
-      // Lấy bill mới nhất chưa thanh toán
-      const activeBill = pendingBills.sort((a, b) => {
-        const timeA = a.createdAt?.toDate?.() || new Date(a.createdAt);
-        const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt);
-        return timeB - timeA;
-      })[0];
-      setBill(activeBill || null);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error loading bill:', error);
-      setLoading(false);
-    });
+
+        const activeBill = matchingBills
+          .filter((candidate) => !candidate.status || candidate.status === 'pending')
+          .sort((a, b) => {
+            const timeA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+            const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+            return timeB - timeA;
+          })[0];
+
+        setBill(activeBill || null);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error loading bill:', error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [tableNumber]);
 
-  // Load bill details when bill changes
   useEffect(() => {
     if (!bill) {
       setBillDetails([]);
       return;
     }
+    if (menuItems.length === 0 || orderItems.length === 0) return;
 
-    // Chờ cả menuItems và orderItems load xong để tránh race condition
-    if (menuItems.length === 0 || orderItems.length === 0) {
-      return;
-    }
-
-    const details = bill.items.map(item => {
-      // Handle regular menu items
+    const details = (bill.items || []).map((item) => {
       if (item.menuItemId) {
-        const menuItem = menuItems.find(m => m.id === item.menuItemId);
-        if (!menuItem) {
-          console.warn(`MenuItems not found: ${item.menuItemId}`);
-          return null;
-        }
+        const menuItem = menuItems.find((candidate) => candidate.id === item.menuItemId);
+        if (!menuItem) return null;
 
         const itemTotal = menuItem.price * item.quantity;
         const taxAmount = itemTotal * (menuItem.tax / 100);
-        const finalPrice = itemTotal + taxAmount;
-
         return {
           ...item,
-          menuItem,
+          type: 'menu',
+          name: menuItem.name,
+          price: menuItem.price,
+          tax: menuItem.tax,
           itemTotal,
           taxAmount,
-          finalPrice,
-          type: 'menu'
+          finalPrice: itemTotal + taxAmount,
         };
       }
-      // Handle order items (new flow)
-      else if (item.orderItemId) {
-        const orderItem = orderItems.find(o => o.id === item.orderItemId);
+
+      if (item.orderItemId) {
+        const orderItem = orderItems.find((candidate) => candidate.id === item.orderItemId);
         if (!orderItem) {
-          console.warn(`OrderItem not found: ${item.orderItemId}`);
-          // Fallback: hiển thị với thông tin cơ bản thay vì return null
           return {
             ...item,
-            orderItem: { name: 'Món không xác định', id: item.orderItemId },
-            parentMenuItem: null,
+            type: 'orderItem',
+            name: 'Món không xác định',
+            price: 25000,
+            tax: 0,
             itemTotal: 25000 * item.quantity,
             taxAmount: 0,
             finalPrice: 25000 * item.quantity,
-            price: 25000,
-            tax: 0,
-            type: 'orderItem'
           };
         }
 
-        // Resolve price from parent menu item when available
         const parent = orderItem.parentMenuItemId
-          ? menuItems.find(m => m.id === orderItem.parentMenuItemId)
+          ? menuItems.find((candidate) => candidate.id === orderItem.parentMenuItemId)
           : null;
-
-        const price = parent?.price ?? 25000; // default for standalone items
+        const price = parent?.price ?? 25000;
         const tax = parent?.tax ?? 0;
-
         const itemTotal = price * item.quantity;
         const taxAmount = itemTotal * (tax / 100);
-        const finalPrice = itemTotal + taxAmount;
-
 
         return {
           ...item,
-          orderItem,
-          parentMenuItem: parent || null,
-          itemTotal,
-          taxAmount,
-          finalPrice,
+          type: 'orderItem',
+          name: orderItem.name,
           price,
           tax,
-          type: 'orderItem'
+          itemTotal,
+          taxAmount,
+          finalPrice: itemTotal + taxAmount,
         };
       }
-      // Handle custom items
-      else if (item.customDescription) {
+
+      if (item.customDescription) {
         return {
           ...item,
-          customDescription: item.customDescription,
-          customAmount: item.customAmount,
+          type: 'custom',
+          name: item.customDescription,
+          quantity: 1,
+          price: item.customAmount,
+          tax: 0,
           itemTotal: item.customAmount,
           taxAmount: 0,
           finalPrice: item.customAmount,
-          type: 'custom'
         };
       }
+
       return null;
     }).filter(Boolean);
 
     setBillDetails(details);
   }, [bill, menuItems, orderItems]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
-  };
+  const totals = useMemo(() => {
+    const subtotal = billDetails.reduce((sum, item) => sum + item.itemTotal, 0);
+    const totalTax = billDetails.reduce((sum, item) => sum + item.taxAmount, 0);
+    return { subtotal, totalTax, total: subtotal + totalTax };
+  }, [billDetails]);
+
+  const availableTables = useMemo(
+    () => tables.filter((table) => table.number.toString() !== tableNumber),
+    [tables, tableNumber]
+  );
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleTimeString('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const calculateTotal = () => {
-    const subtotal = billDetails.reduce((sum, item) => sum + item.itemTotal, 0);
-    const totalTax = billDetails.reduce((sum, item) => sum + item.taxAmount, 0);
-    const total = subtotal + totalTax;
-    
-    return { subtotal, totalTax, total };
-  };
-
-  // Xem hóa đơn bàn khác (chỉ điều hướng, không thay đổi dữ liệu)
   const handleTableSwitch = (newTableNumber) => {
     navigate(`/bill/${newTableNumber}`);
     setShowTableSwitcher(false);
   };
 
-  // Lấy tất cả bàn khác
-  const getAvailableTables = () => {
-    return tables.filter(table => table.number.toString() !== tableNumber);
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Đang tải hóa đơn...</p>
+          <div className="mx-auto mb-4 h-10 w-10 rounded-full border-2 border-[var(--primary-500)] border-t-transparent animate-spin" />
+          <p className="text-sm font-medium text-slate-600">Đang tải hóa đơn...</p>
         </div>
       </div>
     );
   }
 
-  const totals = bill ? calculateTotal() : { subtotal: 0, totalTax: 0, total: 0 };
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-md mx-auto space-y-6">
-
-        {/* Nút đổi bàn + nội dung chính */}
+    <div className="min-h-screen bg-[var(--app-bg)] px-4 py-6">
+      <main className="mx-auto max-w-md space-y-4">
         {!bill ? (
-          /* Trạng thái chưa có hóa đơn */
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center relative">
-            {getAvailableTables().length > 0 && (
+          <section className="relative rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-center shadow-[var(--shadow-sm)]">
+            {availableTables.length > 0 && (
               <button
+                type="button"
                 onClick={() => setShowTableSwitcher(true)}
-                className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                title="Chuyển bàn khác"
+                className="absolute right-3 top-3 rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                title="Đổi bàn"
               >
-                <ArrowLeftRight size={20} />
+                <ArrowLeftRight className="h-5 w-5" />
               </button>
             )}
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Receipt className="w-8 h-8 text-gray-400" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Receipt className="h-7 w-7" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              Chưa có hóa đơn
-            </h2>
-            <p className="text-gray-600 mb-4">
-              Bàn {tableNumber} chưa có hóa đơn nào hoặc đã thanh toán xong.
+            <h1 className="text-xl font-semibold text-slate-950">Chưa có hóa đơn</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Bàn {tableNumber} chưa có hóa đơn hoặc đã thanh toán xong.
             </p>
-            <div className="text-center text-sm text-gray-500">
-              <Clock className="w-4 h-4 inline mr-1" />
-              Hóa đơn sẽ hiển thị tự động khi có order mới
-            </div>
-          </div>
+            <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+              <Clock className="h-4 w-4" />
+              Hóa đơn sẽ tự cập nhật khi có order mới
+            </p>
+            <button type="button" onClick={() => navigate(`/order/${tableNumber}`)} className="btn-primary mt-5 w-full justify-center py-3">
+              <UtensilsCrossed className="h-5 w-5" />
+              Gọi món
+            </button>
+          </section>
         ) : (
-          /* Trạng thái có hóa đơn */
-          <>
-            {/* Header */}
-            <div className="bg-white rounded-t-lg shadow-lg p-6 text-center border-b relative">
-              {getAvailableTables().length > 0 && (
+          <section className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-white shadow-[var(--shadow-md)]">
+            <header className="relative border-b border-slate-100 px-5 py-5 text-center">
+              {availableTables.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => setShowTableSwitcher(true)}
-                  className="absolute top-4 right-4 p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-full transition-colors"
+                  className="absolute right-3 top-3 rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                   title="Đổi bàn"
                 >
-                  <ArrowLeftRight size={20} />
+                  <ArrowLeftRight className="h-5 w-5" />
                 </button>
               )}
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                Quán Ốc
-              </h1>
-              <p className="text-gray-600">
-                Hóa đơn bàn {tableNumber}
-              </p>
-              <p className="text-sm text-gray-500">
-                Thời gian: {formatTime(bill.createdAt)}
-              </p>
-              <div className="mt-2">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                  <Clock className="w-4 h-4 mr-1" />
-                  Chưa thanh toán
-                </span>
+              <p className="section-kicker">Ốc đây nè</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-950">Hóa đơn bàn {tableNumber}</h1>
+              <p className="mt-1 text-sm text-slate-500">Thời gian: {formatTime(bill.createdAt)}</p>
+              <div className="mt-3 flex justify-center">
+                <StatusPill tone="warning" icon={Clock}>Chờ thanh toán</StatusPill>
               </div>
-            </div>
+            </header>
 
-            {/* Bill Items */}
-            <div className="bg-white shadow-lg">
-              <div className="px-6 py-4 border-b">
-                <h3 className="font-semibold text-gray-900">Chi tiết đơn hàng</h3>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {billDetails.map((item, index) => {
-                  if (item.type === 'menu') {
-                    return (
-                      <div key={index} className="px-6 py-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{item.menuItem.name}</h4>
-                            <div className="text-sm text-gray-500 mt-1">
-                              {formatCurrency(item.menuItem.price)} x {item.quantity}
-                              {item.menuItem.tax > 0 && (
-                                <span className="ml-2 text-xs">(Thuế {item.menuItem.tax}%)</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-medium text-gray-900">{formatCurrency(item.finalPrice)}</div>
-                            {item.taxAmount > 0 && (
-                              <div className="text-xs text-gray-500">+{formatCurrency(item.taxAmount)} thuế</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  } else if (item.type === 'orderItem') {
-                    return (
-                      <div key={index} className="px-6 py-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">
-                              {item.orderItem.name}
-                            </h4>
-                            <div className="text-sm text-gray-500 mt-1">
-                              {formatCurrency(item.price)} x {item.quantity}
-                              {item.tax > 0 && (
-                                <span className="ml-2 text-xs">(Thuế {item.tax}%)</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-medium text-gray-900">{formatCurrency(item.finalPrice)}</div>
-                            {item.taxAmount > 0 && (
-                              <div className="text-xs text-gray-500">+{formatCurrency(item.taxAmount)} thuế</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  } else if (item.type === 'custom') {
-                    return (
-                      <div key={index} className="px-6 py-4 bg-blue-50">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{item.customDescription}</h4>
-                            <div className="text-sm text-gray-500 mt-1">
-                              <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                                Món khác
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className={`font-medium ${item.customAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {item.customAmount >= 0 ? '+' : ''}{formatCurrency(item.customAmount)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-            </div>
-
-            {/* Total */}
-            <div className="bg-white shadow-lg border-t">
-              <div className="px-6 py-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Tạm tính:</span>
-                  <span>{formatCurrency(totals.subtotal)}</span>
-                </div>
-                {totals.totalTax > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Thuế:</span>
-                    <span>{formatCurrency(totals.totalTax)}</span>
-                  </div>
-                )}
-                <div className="border-t pt-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-gray-900">Tổng cộng:</span>
-                    <span className="text-xl font-bold text-indigo-600">{formatCurrency(totals.total)}</span>
+            <div className="divide-y divide-slate-100">
+              {billDetails.map((item, index) => (
+                <div key={`${item.type}-${index}`} className={`px-5 py-4 ${item.type === 'custom' ? 'bg-sky-50/60' : 'bg-white'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="font-semibold text-slate-900">{item.name}</h2>
+                      {item.type === 'custom' ? (
+                        <span className="mt-1 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">
+                          Món khác
+                        </span>
+                      ) : (
+                        <p className="mt-1 text-sm text-slate-500">
+                          {formatCurrency(item.price)} x {item.quantity}
+                          {item.tax > 0 && <span className="ml-1">(thuế {item.tax}%)</span>}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className={`font-semibold ${item.finalPrice >= 0 ? 'text-slate-950' : 'text-red-600'}`}>
+                        {item.finalPrice >= 0 && item.type === 'custom' ? '+' : ''}{formatCurrency(item.finalPrice)}
+                      </p>
+                      {item.taxAmount > 0 && <p className="mt-1 text-xs text-slate-500">+{formatCurrency(item.taxAmount)} thuế</p>}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
 
-            {/* Status Info */}
-            <div className="bg-white rounded-b-lg shadow-lg p-6">
-              <div className="text-center">
-                <div className="mb-4">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Clock className="w-6 h-6 text-yellow-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Chờ thanh toán</h3>
-                  <p className="text-gray-600 text-sm">
-                    Vui lòng gọi nhân viên để thanh toán hoặc đặt thêm món
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-xs text-gray-500">
-                    💡 Hóa đơn này sẽ cập nhật tự động khi có thêm món mới
-                  </p>
-                </div>
-                <div className="mt-6">
-                  <button
-                    onClick={() => navigate(`/order/${tableNumber}`)}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center shadow-md"
-                  >
-                    <UtensilsCrossed className="w-5 h-5 mr-2" />
-                    🍽️ Gọi thêm món
-                  </button>
-                </div>
+            <footer className="space-y-3 border-t border-slate-100 bg-slate-50 px-5 py-4">
+              <div className="flex justify-between text-sm text-slate-600">
+                <span>Tạm tính</span>
+                <span>{formatCurrency(totals.subtotal)}</span>
               </div>
-            </div>
-          </>
+              {totals.totalTax > 0 && (
+                <div className="flex justify-between text-sm text-slate-600">
+                  <span>Thuế</span>
+                  <span>{formatCurrency(totals.totalTax)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+                <span className="text-base font-semibold text-slate-950">Tổng cộng</span>
+                <span className="text-2xl font-semibold text-[var(--primary-700)]">{formatCurrency(totals.total)}</span>
+              </div>
+              <button type="button" onClick={() => navigate(`/order/${tableNumber}`)} className="btn-primary mt-2 w-full justify-center py-3">
+                <UtensilsCrossed className="h-5 w-5" />
+                Gọi thêm món
+              </button>
+            </footer>
+          </section>
         )}
 
-        {/* Nút gọi món - chỉ hiện khi chưa có hóa đơn */}
-        {!bill && (
-          <button
-            onClick={() => navigate(`/order/${tableNumber}`)}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center shadow-md"
-          >
-            <UtensilsCrossed className="w-5 h-5 mr-2" />
-            🍽️ Gọi món
-          </button>
-        )}
-
-        {/* QR Code - dùng chung */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="text-center">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Mã QR thanh toán</h3>
-            <div className="flex justify-center mb-4">
+        <section className="rounded-lg border border-[var(--border-subtle)] bg-white p-5 text-center shadow-[var(--shadow-sm)]">
+          <h2 className="text-base font-semibold text-slate-950">QR thanh toán</h2>
+          <div className="mt-4 flex justify-center">
+            {!qrBroken ? (
               <img
                 src={defaultQR}
-                alt="QR Code thanh toán"
-                className="w-full h-auto object-contain border border-gray-200 rounded-lg"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
-                }}
+                alt="QR thanh toán"
+                className="max-h-80 w-full rounded-lg border border-slate-200 object-contain"
+                onError={() => setQrBroken(true)}
               />
-              <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-sm" style={{display: 'none'}}>
-                QR Code không khả dụng
+            ) : (
+              <div className="flex h-48 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+                QR không khả dụng
               </div>
-            </div>
-            <p className="text-sm text-gray-600">Quét mã QR để thanh toán qua ví điện tử</p>
+            )}
           </div>
-        </div>
+          <p className="mt-3 text-sm text-slate-500">Quét mã để thanh toán qua ví điện tử hoặc ứng dụng ngân hàng.</p>
+        </section>
 
-        {/* Footer - dùng chung */}
-        <div className="text-center text-sm text-gray-500">
-          <p>Cảm ơn quý khách đã sử dụng dịch vụ!</p>
-        </div>
-      </div>
+        <p className="text-center text-sm text-slate-500">Cảm ơn quý khách đã sử dụng dịch vụ.</p>
+      </main>
 
-      {/* Modal đổi bàn - dùng chung cho cả 2 trạng thái */}
       {showTableSwitcher && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-sm w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <ArrowLeftRight size={18} className="text-indigo-500" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <section className="max-h-[80vh] w-full max-w-sm overflow-hidden rounded-lg bg-white shadow-xl">
+            <header className="flex items-center justify-between border-b border-slate-100 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
+                <ArrowLeftRight className="h-5 w-5 text-[var(--primary-600)]" />
                 Đổi bàn
-              </h3>
-              <button
-                onClick={() => setShowTableSwitcher(false)}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X size={20} />
+              </h2>
+              <button type="button" onClick={() => setShowTableSwitcher(false)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100">
+                <X className="h-5 w-5" />
               </button>
-            </div>
+            </header>
             <div className="p-4">
-              <p className="text-sm text-gray-600 mb-3">Chọn bàn muốn xem hóa đơn:</p>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {getAvailableTables().map((table) => (
+              <p className="mb-3 text-sm text-slate-600">Chọn bàn muốn xem hóa đơn:</p>
+              <div className="max-h-64 space-y-2 overflow-y-auto">
+                {availableTables.map((table) => (
                   <button
+                    type="button"
                     key={table.id}
                     onClick={() => handleTableSwitch(table.number)}
-                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-200 p-3 text-left transition hover:border-[var(--primary-200)] hover:bg-[var(--primary-50)]"
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-gray-900">Bàn {table.number}</div>
-                        <div className="text-sm text-gray-500">
-                          {table.seats} chỗ ngồi
-                          {table.description && ` • ${table.description}`}
-                        </div>
-                      </div>
-                      <ChevronDown className="w-4 h-4 text-indigo-400 transform -rotate-90" />
-                    </div>
+                    <span>
+                      <span className="block font-semibold text-slate-900">Bàn {table.number}</span>
+                      <span className="text-sm text-slate-500">
+                        {table.seats} chỗ{table.description ? ` · ${table.description}` : ''}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-[var(--primary-600)]" />
                   </button>
                 ))}
               </div>
-              {getAvailableTables().length === 0 && (
-                <p className="text-center text-gray-500 py-8">Không có bàn khác để chuyển</p>
-              )}
+              {availableTables.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Không có bàn khác để chuyển</p>}
             </div>
-          </div>
+          </section>
         </div>
       )}
     </div>
   );
 };
 
-export default PublicBill; 
+export default PublicBill;

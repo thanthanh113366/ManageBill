@@ -1,25 +1,95 @@
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X, Home, ShoppingCart, FileText, BarChart3, QrCode, PieChart, Wallet, Building2, Tag } from 'lucide-react';
+import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import {
+  BarChart3,
+  Building2,
+  FileText,
+  Home,
+  LogOut,
+  Menu,
+  PieChart,
+  QrCode,
+  ShoppingCart,
+  Tag,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { useState } from 'react';
+
+const navigationGroups = [
+  {
+    label: 'Vận hành',
+    items: [
+      { path: '/', label: 'Tạo đơn', icon: Home },
+      { path: '/bills', label: 'Quản lý đơn', icon: FileText },
+    ],
+  },
+  {
+    label: 'Menu & bàn',
+    items: [
+      { path: '/menu', label: 'Menu, món gọi & bàn', icon: ShoppingCart },
+      { path: '/qr', label: 'QR khách hàng', icon: QrCode },
+    ],
+  },
+  {
+    label: 'Tài chính',
+    items: [
+      { path: '/expenses', label: 'Vốn hằng ngày', icon: Wallet },
+      { path: '/fixed-costs', label: 'Chi phí cố định', icon: Building2 },
+      { path: '/expense-categories', label: 'Danh mục chi phí', icon: Tag },
+    ],
+  },
+  {
+    label: 'Phân tích',
+    items: [
+      { path: '/reports', label: 'Báo cáo P&L', icon: BarChart3 },
+      { path: '/dish-analysis', label: 'Tổng kết món', icon: PieChart },
+    ],
+  },
+];
+
+const NavItem = ({ item, onClick }) => {
+  const Icon = item.icon;
+
+  return (
+    <NavLink
+      key={item.path}
+      to={item.path}
+      onClick={onClick}
+      className={({ isActive }) =>
+        `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-teal-50 text-teal-800 ring-1 ring-teal-100'
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950'
+        }`
+      }
+    >
+      <Icon size={18} className="shrink-0" />
+      <span className="truncate">{item.label}</span>
+    </NavLink>
+  );
+};
+
+const NavGroups = ({ onNavigate }) => (
+  <nav className="space-y-5">
+    {navigationGroups.map((group) => (
+      <div key={group.label}>
+        <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">
+          {group.label}
+        </p>
+        <div className="space-y-1">
+          {group.items.map((item) => (
+            <NavItem key={item.path} item={item} onClick={onNavigate} />
+          ))}
+        </div>
+      </div>
+    ))}
+  </nav>
+);
 
 const Layout = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { logout } = useApp();
-  const location = useLocation();
-
-  const navigationItems = [
-    { path: '/', label: 'Tạo đơn hàng', icon: Home },
-    { path: '/bills', label: 'Quản lý đơn hàng', icon: FileText },
-    { path: '/reports', label: 'Báo cáo', icon: BarChart3 },
-    { path: '/dish-analysis', label: 'Tổng kết món', icon: PieChart },
-    { path: '/expenses', label: 'Vốn hàng ngày', icon: Wallet },
-    { path: '/fixed-costs', label: 'Chi phí cố định', icon: Building2 },
-    { path: '/expense-categories', label: 'Danh mục chi phí', icon: Tag },
-    { path: '/menu', label: 'Quản lý menu', icon: ShoppingCart },
-    { path: '/qr', label: 'QR Code thanh toán', icon: QrCode }
-  ];
 
   const handleLogout = () => {
     logout();
@@ -27,109 +97,68 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile header */}
-      <header className="bg-white shadow-sm border-b lg:hidden">
+    <div className="min-h-screen bg-[color:var(--bg-app)]">
+      <header className="sticky top-0 z-30 border-b border-[color:var(--border-subtle)] bg-white/95 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-semibold text-gray-900">Quán Ốc</h1>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Quán Ốc</p>
+            <h1 className="text-base font-bold text-gray-950">Bảng điều hành</h1>
+          </div>
           <button
+            type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-950"
+            aria-label={isMenuOpen ? 'Đóng menu' : 'Mở menu'}
           >
             {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </header>
 
-      {/* Mobile navigation */}
       {isMenuOpen && (
-        <div className="lg:hidden bg-white border-b shadow-sm">
-          <nav className="px-4 py-2">
-            {navigationItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-indigo-100 text-indigo-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`
-                  }
-                >
-                  <Icon size={18} className="mr-3" />
-                  {item.label}
-                </NavLink>
-              );
-            })}
-            <button
-              onClick={handleLogout}
-              className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 w-full text-left"
-            >
-              <LogOut size={18} className="mr-3" />
-              Đăng xuất
-            </button>
-          </nav>
+        <div className="border-b border-[color:var(--border-subtle)] bg-white px-4 py-4 shadow-sm lg:hidden">
+          <NavGroups onNavigate={() => setIsMenuOpen(false)} />
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-5 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50"
+          >
+            <LogOut size={18} />
+            Đăng xuất
+          </button>
         </div>
       )}
 
       <div className="lg:flex">
-        {/* Desktop sidebar */}
-        <div className="hidden lg:flex lg:flex-shrink-0">
-          <div className="flex flex-col w-64">
-            <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
-              <div className="px-6 py-4 border-b">
-                <h1 className="text-xl font-bold text-gray-900">Quán Ốc</h1>
-                <p className="text-sm text-gray-600">Quản lý đơn hàng</p>
-              </div>
-              
-              <nav className="flex-1 px-4 py-4 space-y-1">
-                {navigationItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={({ isActive }) =>
-                        `flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-indigo-100 text-indigo-700'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                        }`
-                      }
-                    >
-                      <Icon size={18} className="mr-3" />
-                      {item.label}
-                    </NavLink>
-                  );
-                })}
-              </nav>
-              
-              <div className="px-4 py-4 border-t">
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 w-full text-left"
-                >
-                  <LogOut size={18} className="mr-3" />
-                  Đăng xuất
-                </button>
-              </div>
-            </div>
+        <aside className="hidden min-h-screen w-72 shrink-0 border-r border-[color:var(--border-subtle)] bg-white lg:sticky lg:top-0 lg:flex lg:flex-col">
+          <div className="border-b border-[color:var(--border-subtle)] px-6 py-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Quán Ốc</p>
+            <h1 className="mt-1 text-xl font-bold text-gray-950">Bảng điều hành</h1>
+            <p className="mt-1 text-sm text-gray-500">Order, bếp và tài chính</p>
           </div>
-        </div>
 
-        {/* Main content */}
-        <div className="flex-1 min-w-0">
-          <main className="p-4 lg:p-8">
-            {children}
-          </main>
-        </div>
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            <NavGroups />
+          </div>
+
+          <div className="border-t border-[color:var(--border-subtle)] p-4">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50"
+            >
+              <LogOut size={18} />
+              Đăng xuất
+            </button>
+          </div>
+        </aside>
+
+        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+          {children}
+        </main>
       </div>
     </div>
   );
 };
 
-export default Layout; 
+export default Layout;

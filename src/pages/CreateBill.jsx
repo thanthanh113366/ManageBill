@@ -4,21 +4,21 @@ import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import CustomerPageModal from '../components/CustomerPageModal';
-import { Plus, Minus, ShoppingCart, Calculator, ExternalLink } from 'lucide-react';
+import { Calculator, ExternalLink, Minus, Plus, Search, ShoppingCart, X } from 'lucide-react';
 import { VoiceOrderButton } from '../components/VoiceOrderButton';
 import { getVoiceOrderMetrics } from '../utils/voiceOrderMetrics';
 import CustomItemForm from '../components/CustomItemForm';
 import { submitTableOrder } from '../utils/customerOrder';
 import { getVietnamDateString } from '../utils/businessDate';
+import { EmptyState, PageHeader, StatusPill, SurfaceCard } from '../components/ui';
 
-// Categories for menu items
 const CATEGORIES = [
   { value: 'oc', label: 'Ốc' },
   { value: 'an_no', label: 'Ăn no' },
   { value: 'an_choi', label: 'Ăn chơi' },
   { value: 'lai_rai', label: 'Lai rai' },
   { value: 'giai_khat', label: 'Giải khát' },
-  { value: 'all', label: 'Tất cả' }
+  { value: 'all', label: 'Tất cả' },
 ];
 
 const CreateBill = () => {
@@ -30,30 +30,29 @@ const CreateBill = () => {
   const [showCustomerOrderModal, setShowCustomerOrderModal] = useState(false);
   const [bills, setBills] = useState([]);
   const [selectedDate, setSelectedDate] = useState(getVietnamDateString());
-
-  // Custom items (món khác) cho CreateBill
   const [customItems, setCustomItems] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Set menuItemId vừa thêm từ voice – dùng để emit metric 7 khi user gỡ món
   const voiceAddedIdsRef = useRef(new Set());
 
-  // Tính toán tổng bill
   const billSummary = useMemo(() => {
     let totalRevenue = 0;
     let totalProfit = 0;
     let totalCost = 0;
     let totalFixedCost = 0;
     let totalItems = 0;
-
     const items = [];
 
     Object.entries(quantities).forEach(([menuItemId, quantity]) => {
       if (quantity > 0) {
-        const menuItem = menuItems.find(item => item.id === menuItemId);
+        const menuItem = menuItems.find((item) => item.id === menuItemId);
         if (menuItem) {
           const itemRevenue = menuItem.price * quantity;
-          const taxAmount = itemRevenue * (menuItem.tax / 100);
-          const profitPerItem = menuItem.price - menuItem.costPrice - menuItem.fixedCost - (menuItem.price * menuItem.tax / 100);
+          const profitPerItem =
+            menuItem.price -
+            (menuItem.costPrice || 0) -
+            (menuItem.fixedCost || 0) -
+            (menuItem.price * (menuItem.tax || 0)) / 100;
           const itemProfit = profitPerItem * quantity;
 
           totalRevenue += itemRevenue;
@@ -68,28 +67,20 @@ const CreateBill = () => {
             name: menuItem.name,
             price: menuItem.price,
             revenue: itemRevenue,
-            profit: itemProfit
+            profit: itemProfit,
           });
         }
       }
     });
 
-    return {
-      items,
-      totalRevenue,
-      totalProfit,
-      totalCost,
-      totalFixedCost,
-      totalItems
-    };
+    return { items, totalRevenue, totalProfit, totalCost, totalFixedCost, totalItems };
   }, [quantities, menuItems]);
 
-  // Tổng tiền cho custom items
   const customTotals = useMemo(() => {
     let totalRevenue = 0;
     let totalProfit = 0;
 
-    customItems.forEach(item => {
+    customItems.forEach((item) => {
       totalRevenue += item.customAmount;
       totalProfit += item.customAmount;
     });
@@ -101,42 +92,41 @@ const CreateBill = () => {
   const totalProfitWithCustom = billSummary.totalProfit + customTotals.totalProfit;
   const totalCostWithCustom = billSummary.totalCost + customTotals.totalCost;
   const totalFixedCostWithCustom = billSummary.totalFixedCost + customTotals.totalFixedCost;
+  const totalItemCount = billSummary.totalItems + customItems.length;
 
   const handleQuantityChange = (menuItemId, change) => {
     const currentQuantity = quantities[menuItemId] || 0;
     const newQuantity = Math.max(0, currentQuantity + change);
+
     if (newQuantity === 0 && voiceAddedIdsRef.current.has(menuItemId)) {
       getVoiceOrderMetrics().recordUserRemovedVoiceItem(menuItemId);
       voiceAddedIdsRef.current.delete(menuItemId);
     }
-    setQuantities(prev => {
+
+    setQuantities((prev) => {
       if (newQuantity === 0) {
         const { [menuItemId]: removed, ...rest } = prev;
         return rest;
       }
-      return {
-        ...prev,
-        [menuItemId]: newQuantity
-      };
+      return { ...prev, [menuItemId]: newQuantity };
     });
   };
 
   const setQuantityDirectly = (menuItemId, value) => {
-    const quantity = Math.max(0, parseInt(value) || 0);
+    const quantity = Math.max(0, parseInt(value, 10) || 0);
+
     if (quantity === 0 && voiceAddedIdsRef.current.has(menuItemId)) {
       getVoiceOrderMetrics().recordUserRemovedVoiceItem(menuItemId);
       voiceAddedIdsRef.current.delete(menuItemId);
     }
+
     if (quantity === 0) {
-      setQuantities(prev => {
+      setQuantities((prev) => {
         const { [menuItemId]: removed, ...rest } = prev;
         return rest;
       });
     } else {
-      setQuantities(prev => ({
-        ...prev,
-        [menuItemId]: quantity
-      }));
+      setQuantities((prev) => ({ ...prev, [menuItemId]: quantity }));
     }
   };
 
@@ -154,16 +144,16 @@ const CreateBill = () => {
     setIsSubmitting(true);
 
     try {
-      const menuBillItems = billSummary.items.map(item => ({
+      const menuBillItems = billSummary.items.map((item) => ({
         menuItemId: item.menuItemId,
-        quantity: item.quantity
+        quantity: item.quantity,
       }));
 
-      const customBillItems = customItems.map(item => ({
+      const customBillItems = customItems.map((item) => ({
         customItemId: item.customItemId || item.id,
         customDescription: item.customDescription,
         customAmount: item.customAmount,
-        quantity: 1
+        quantity: 1,
       }));
 
       await submitTableOrder({
@@ -175,8 +165,7 @@ const CreateBill = () => {
         totalFixedCost: totalFixedCostWithCustom,
         source: 'internal',
       });
-      
-      // Reset form
+
       setQuantities({});
       setSelectedTable('');
       setCustomItems([]);
@@ -189,11 +178,8 @@ const CreateBill = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
-  };
+  const formatCurrency = (amount) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`;
 
-  // Load bills from Firestore
   useEffect(() => {
     const q = query(
       collection(db, 'bills'),
@@ -202,27 +188,19 @@ const CreateBill = () => {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const billsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      // Sắp xếp: đơn chưa thanh toán lên đầu, giữ nguyên logic thời gian trong mỗi nhóm
+      const billsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       const sortedBills = billsData.sort((a, b) => {
-        // Kiểm tra trạng thái thanh toán
         const aIsPending = !a.status || a.status === 'pending';
         const bIsPending = !b.status || b.status === 'pending';
-        
-        // Nếu một đơn pending và một đơn đã thanh toán, đưa pending lên đầu
+
         if (aIsPending && !bIsPending) return -1;
         if (!aIsPending && bIsPending) return 1;
-        
-        // Nếu cùng trạng thái, sắp xếp theo thời gian (mới nhất lên đầu)
+
         const timeA = a.createdAt?.toDate?.() || new Date(a.createdAt);
         const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt);
         return timeB - timeA;
       });
-      
+
       setBills(sortedBills);
     }, (error) => {
       console.error('Error loading bills:', error);
@@ -237,12 +215,10 @@ const CreateBill = () => {
   };
 
   const handleVoiceItemsMatched = (matchedItems) => {
-    matchedItems.forEach(item => voiceAddedIdsRef.current.add(item.menuItemId));
-    // Ghi đè (không cộng dồn) - theo yêu cầu
-    setQuantities(prev => {
+    matchedItems.forEach((item) => voiceAddedIdsRef.current.add(item.menuItemId));
+    setQuantities((prev) => {
       const newQuantities = { ...prev };
-      matchedItems.forEach(item => {
-        // Ghi đè số lượng mới (không cộng với số cũ)
+      matchedItems.forEach((item) => {
         newQuantities[item.menuItemId] = item.quantity;
       });
       return newQuantities;
@@ -250,272 +226,354 @@ const CreateBill = () => {
   };
 
   const getActiveTables = () => {
-    // Chỉ lấy bàn thật trong stat card (loại ảo 9000+)
     const activeTables = new Set();
-    bills.filter(bill => bill.status === 'pending' && !bill.isTakeaway).forEach(bill => {
-      if (bill.tableNumber) activeTables.add(bill.tableNumber);
-    });
-    
+    bills
+      .filter((bill) => bill.status === 'pending' && !bill.isTakeaway)
+      .forEach((bill) => {
+        if (bill.tableNumber) activeTables.add(bill.tableNumber);
+      });
+
     return Array.from(activeTables).sort((a, b) => a - b);
   };
 
   const getActiveBills = () =>
     bills
-      .filter(bill => bill.status === 'pending')
+      .filter((bill) => bill.status === 'pending')
       .sort((a, b) => {
         if (a.isTakeaway !== b.isTakeaway) return a.isTakeaway ? 1 : -1;
         return (a.isTakeaway ? a.takeawayNumber : a.tableNumber) -
-               (b.isTakeaway ? b.takeawayNumber : b.tableNumber);
+          (b.isTakeaway ? b.takeawayNumber : b.tableNumber);
       });
 
-  // Filter menu items by category
   const filteredMenuItems = useMemo(() => {
-    if (selectedCategory === 'all') {
-      return menuItems;
-    }
-    return menuItems.filter(item => item.category === selectedCategory);
-  }, [menuItems, selectedCategory]);
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return menuItems.filter((item) => {
+      const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+      const matchesSearch = !normalizedSearch || item.name?.toLowerCase().includes(normalizedSearch);
+      return matchesCategory && matchesSearch;
+    });
+  }, [menuItems, selectedCategory, searchTerm]);
 
-  // Get count for each category
   const getCategoryCount = (categoryValue) => {
-    if (categoryValue === 'all') {
-      return menuItems.length;
-    }
-    return menuItems.filter(item => item.category === categoryValue).length;
+    if (categoryValue === 'all') return menuItems.length;
+    return menuItems.filter((item) => item.category === categoryValue).length;
   };
+
+  const removeCustomItem = (customItemId) => {
+    setCustomItems((prev) => prev.filter((item) => item.id !== customItemId));
+  };
+
+  const activeTables = getActiveTables();
+  const activeBills = getActiveBills();
 
   if (menuItems.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-          <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Chưa có món nào trong menu
-          </h2>
-          <p className="text-gray-600 mb-4">
-            Vui lòng thêm các món ăn vào menu trước khi tạo đơn hàng
-          </p>
-          <a
-            href="/menu"
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            Quản lý menu
-          </a>
-        </div>
+      <div className="page-shell">
+        <EmptyState
+          icon={ShoppingCart}
+          title="Chưa có món nào trong menu"
+          description="Thêm món bán trước khi tạo đơn. Sau khi có menu, màn tạo đơn sẽ tự mở danh sách món theo từng nhóm."
+          action={(
+            <a href="/menu" className="btn-primary px-4 py-2">
+              Quản lý menu
+            </a>
+          )}
+        />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Tạo đơn hàng</h1>
-          
+    <div className="page-shell">
+      <PageHeader
+        eyebrow="Vận hành"
+        title="Tạo đơn"
+        description="Chọn bàn, thêm món và kiểm tra tổng tiền trong giỏ trước khi gửi xuống bếp."
+        actions={(
           <button
+            type="button"
             onClick={() => setShowCustomerOrderModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="btn-primary px-4 py-2"
             title="Mở trang khách hàng"
           >
             <ExternalLink size={16} />
-            <span>Trang khách</span>
+            Trang khách
           </button>
-        </div>
-        
-        {/* Table Selection */}
-        <div className="mb-6">
-          <label htmlFor="table" className="block text-sm font-medium text-gray-700 mb-2">
-            Chọn số bàn *
-          </label>
-          <div className="flex items-center gap-3">
-            <select
-              id="table"
-              value={selectedTable}
-              onChange={(e) => setSelectedTable(e.target.value)}
-              className="flex-1 max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="">-- Chọn bàn --</option>
-              {tables && tables.map((table) => (
-                <option key={table.id} value={table.number}>
-                  Bàn {table.number} - {table.seats} chỗ
-                </option>
-              ))}
-            </select>
-            
-            {/* Voice Order Button - Cạnh phần chọn bàn */}
-            <VoiceOrderButton 
-              menuItems={menuItems}
-              currentCategory={selectedCategory}
-              onItemsMatched={handleVoiceItemsMatched}
-            />
-          </div>
-        </div>
-        
-        {/* Category Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 overflow-x-auto">
-              {CATEGORIES.map((category) => (
-                <button
-                  key={category.value}
-                  onClick={() => setSelectedCategory(category.value)}
-                  className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                    selectedCategory === category.value
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <span>{category.label}</span>
-                  <span className={`inline-flex items-center justify-center w-5 h-5 text-xs rounded-full ${
-                    selectedCategory === category.value
-                      ? 'bg-indigo-100 text-indigo-600'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {getCategoryCount(category.value)}
-                  </span>
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-        
-        {/* Menu items */}
-        <div className="space-y-4 mb-6">
-          {filteredMenuItems.map((item) => {
-            const quantity = quantities[item.id] || 0;
-            
-            return (
-              <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                  <p className="text-indigo-600 font-medium">
-                    {formatCurrency(item.price)}
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => handleQuantityChange(item.id, -1)}
-                    className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                    disabled={quantity === 0}
-                  >
-                    <Minus size={16} />
-                  </button>
-                  
-                  <input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantityDirectly(item.id, e.target.value)}
-                    className="w-16 text-center border rounded-md py-1 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    min="0"
-                  />
-                  
-                  <button
-                    onClick={() => handleQuantityChange(item.id, 1)}
-                    className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center transition-colors"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Custom items (món khác) */}
-        <CustomItemForm
-          onAdd={({ customDescription, customAmount }) => {
-            const customItemId = `custom_${Date.now()}_${Math.random()}`;
-            const newCustomItem = {
-              id: customItemId,
-              customItemId,
-              customDescription,
-              customAmount
-            };
-            setCustomItems(prev => [...prev, newCustomItem]);
-            toast.success('Đã thêm món khác');
-          }}
-        />
-
-        {/* Bill Summary */}
-        {(billSummary.totalItems > 0 || customItems.length > 0) && (
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center mb-4">
-              <Calculator className="w-5 h-5 text-indigo-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-900">
-                Tổng kết đơn hàng
-              </h2>
-            </div>
-            
-            <div className="space-y-2 mb-4">
-              {billSummary.items.map((item) => (
-                <div key={item.menuItemId} className="flex justify-between text-sm">
-                  <span className="text-gray-600">
-                    {item.name} x{item.quantity}
-                  </span>
-                  <span className="font-medium">
-                    {formatCurrency(item.revenue)}
-                  </span>
-                </div>
-              ))}
-
-              {customItems.map(item => (
-                <div key={item.id} className="flex justify-between text-sm">
-                  <span className="text-gray-600">
-                    {item.customDescription}
-                  </span>
-                  <span
-                    className={`font-medium ${
-                      item.customAmount >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {item.customAmount >= 0 ? '+' : ''}
-                    {formatCurrency(item.customAmount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-            
-            <div className="border-t pt-4 space-y-2">
-              <div className="flex justify-between font-semibold text-lg">
-                <span>Tổng cộng:</span>
-                <span className="text-indigo-600">
-                  {formatCurrency(totalRevenueWithCustom)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Lợi nhuận dự kiến:</span>
-                <span className="text-green-600 font-medium">
-                  {formatCurrency(totalProfitWithCustom)}
-                </span>
-              </div>
-            </div>
-            
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !selectedTable}
-              className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
-            >
-              {isSubmitting ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Đang xử lý...
-                </div>
-              ) : (
-                <>
-                  <ShoppingCart size={20} className="mr-2" />
-                  Tạo đơn hàng
-                </>
-              )}
-            </button>
+        )}
+        meta={(
+          <div className="flex flex-wrap gap-2">
+            <StatusPill tone="primary">{activeTables.length} bàn đang mở</StatusPill>
+            <StatusPill tone="warning">{activeBills.length} đơn chờ thanh toán</StatusPill>
+            {selectedTable && <StatusPill tone="success">Đang chọn bàn {selectedTable}</StatusPill>}
           </div>
         )}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-6">
+          <SurfaceCard className="p-4 sm:p-5">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="table" className="mb-1.5 block text-sm font-semibold text-gray-800">
+                    Bàn phục vụ
+                  </label>
+                  <select
+                    id="table"
+                    value={selectedTable}
+                    onChange={(e) => setSelectedTable(e.target.value)}
+                    className="form-control"
+                  >
+                    <option value="">Chọn bàn</option>
+                    {tables?.map((table) => (
+                      <option key={table.id} value={table.number}>
+                        Bàn {table.number} - {table.seats} chỗ
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="selected-date" className="mb-1.5 block text-sm font-semibold text-gray-800">
+                    Ngày theo dõi
+                  </label>
+                  <input
+                    id="selected-date"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-start md:justify-end">
+                <VoiceOrderButton
+                  menuItems={menuItems}
+                  currentCategory={selectedCategory}
+                  onItemsMatched={handleVoiceItemsMatched}
+                />
+              </div>
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className="overflow-hidden">
+            <div className="border-b border-[color:var(--border-subtle)] p-4 sm:p-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <p className="section-kicker">Danh sách món</p>
+                  <h2 className="mt-1 text-xl font-bold text-gray-950">Chọn món cho đơn</h2>
+                </div>
+                <div className="relative w-full xl:max-w-xs">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Tìm món..."
+                    className="form-control pl-9"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto">
+                <div className="flex min-w-max gap-2">
+                  {CATEGORIES.map((category) => {
+                    const isSelected = selectedCategory === category.value;
+                    return (
+                      <button
+                        key={category.value}
+                        type="button"
+                        onClick={() => setSelectedCategory(category.value)}
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
+                          isSelected
+                            ? 'bg-teal-700 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-950'
+                        }`}
+                      >
+                        {category.label}
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${isSelected ? 'bg-white/20' : 'bg-white'}`}>
+                          {getCategoryCount(category.value)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="divide-y divide-[color:var(--border-subtle)]">
+              {filteredMenuItems.length === 0 ? (
+                <div className="p-8 text-center text-sm text-[color:var(--text-muted)]">
+                  Không tìm thấy món phù hợp với bộ lọc hiện tại.
+                </div>
+              ) : (
+                filteredMenuItems.map((item) => {
+                  const quantity = quantities[item.id] || 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex flex-col gap-4 p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${
+                        quantity > 0 ? 'bg-teal-50/70' : 'bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold text-gray-950">{item.name}</h3>
+                          {quantity > 0 && <StatusPill tone="primary">Đã chọn {quantity}</StatusPill>}
+                        </div>
+                        <p className="mt-1 font-semibold text-teal-700">{formatCurrency(item.price)}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityChange(item.id, -1)}
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-40"
+                          disabled={quantity === 0}
+                          aria-label={`Giảm ${item.name}`}
+                        >
+                          <Minus size={16} />
+                        </button>
+
+                        <input
+                          type="number"
+                          value={quantity}
+                          onChange={(e) => setQuantityDirectly(item.id, e.target.value)}
+                          className="h-9 w-16 rounded-lg border border-[color:var(--border-subtle)] text-center text-sm font-semibold outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                          min="0"
+                          aria-label={`Số lượng ${item.name}`}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityChange(item.id, 1)}
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-700 text-white transition-colors hover:bg-teal-800"
+                          aria-label={`Thêm ${item.name}`}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className="p-4 sm:p-5">
+            <div className="mb-4">
+              <p className="section-kicker">Món ngoài menu</p>
+              <h2 className="mt-1 text-lg font-bold text-gray-950">Thêm phụ thu hoặc giảm giá</h2>
+            </div>
+            <CustomItemForm
+              onAdd={({ customDescription, customAmount }) => {
+                const customItemId = `custom_${Date.now()}_${Math.random()}`;
+                setCustomItems((prev) => [
+                  ...prev,
+                  { id: customItemId, customItemId, customDescription, customAmount },
+                ]);
+                toast.success('Đã thêm món khác');
+              }}
+            />
+          </SurfaceCard>
+        </div>
+
+        <aside className="lg:sticky lg:top-8 lg:self-start">
+          <SurfaceCard className="overflow-hidden">
+            <div className="border-b border-[color:var(--border-subtle)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="section-kicker">Giỏ hiện tại</p>
+                  <h2 className="mt-1 text-xl font-bold text-gray-950">Tổng kết đơn</h2>
+                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--primary-soft)] text-[color:var(--primary)]">
+                  <Calculator size={20} />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              {totalItemCount === 0 ? (
+                <div className="rounded-lg bg-gray-50 p-5 text-center text-sm text-[color:var(--text-muted)]">
+                  Chọn món để xem tổng tiền và tạo đơn.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {billSummary.items.map((item) => (
+                    <div key={item.menuItemId} className="flex items-start justify-between gap-3 text-sm">
+                      <div>
+                        <p className="font-medium text-gray-900">{item.name}</p>
+                        <p className="text-xs text-[color:var(--text-muted)]">x{item.quantity}</p>
+                      </div>
+                      <p className="shrink-0 font-semibold text-gray-950">{formatCurrency(item.revenue)}</p>
+                    </div>
+                  ))}
+
+                  {customItems.map((item) => (
+                    <div key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900">{item.customDescription}</p>
+                        <p className="text-xs text-[color:var(--text-muted)]">Món khác</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <p className={`font-semibold ${item.customAmount >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          {item.customAmount >= 0 ? '+' : ''}{formatCurrency(item.customAmount)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomItem(item.id)}
+                          className="rounded-full p-1 text-gray-400 hover:bg-rose-50 hover:text-rose-600"
+                          aria-label={`Xóa ${item.customDescription}`}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 border-t border-[color:var(--border-subtle)] pt-5">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-semibold text-gray-700">Tổng cộng</span>
+                  <span className="text-2xl font-bold text-teal-700">{formatCurrency(totalRevenueWithCustom)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-4 text-sm text-[color:var(--text-muted)]">
+                  <span>Lợi nhuận dự kiến</span>
+                  <span className="font-semibold text-emerald-700">{formatCurrency(totalProfitWithCustom)}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !selectedTable || totalItemCount === 0}
+                className="btn-primary mt-5 w-full px-4 py-3"
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart size={20} />
+                    Tạo đơn
+                  </>
+                )}
+              </button>
+
+              {!selectedTable && totalItemCount > 0 && (
+                <p className="mt-3 text-center text-xs text-amber-700">Chọn bàn trước khi tạo đơn.</p>
+              )}
+            </div>
+          </SurfaceCard>
+        </aside>
       </div>
 
-      {/* Customer Order Modal */}
       {showCustomerOrderModal && (
         <CustomerPageModal
-          activeBills={getActiveBills()}
+          activeBills={activeBills}
           tables={tables || []}
           onClose={() => setShowCustomerOrderModal(false)}
           onSelect={handleOpenPublicBill}
@@ -525,4 +583,4 @@ const CreateBill = () => {
   );
 };
 
-export default CreateBill; 
+export default CreateBill;

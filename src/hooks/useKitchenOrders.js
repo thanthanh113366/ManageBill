@@ -234,7 +234,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
    * @returns {Object|null} - Món tiếp theo
    */
   const getNextItem = () => {
-    return filteredQueue.find(item => item.kitchenStatus === 'pending') || null;
+    return filteredQueue.find(item => !item.isCompleted && item.kitchenStatus !== 'ready') || null;
   };
 
   /**

@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { calculateKitchenQueue, filterByTable, calculateKitchenStats } from '../utils/kitchenOptimizer';
+import { getVietnamDateString } from '../utils/businessDate';
 
+const getBillItemKey = (item) =>
+  item.orderItemId || item.menuItemId || item.customItemId || item.customDescription;
+
+const itemMatchesKey = (item, itemKey) => getBillItemKey(item) === itemKey;
 /**
  * Custom hook để quản lý đơn hàng bếp real-time
  */
 export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
-  const { tables, orderItems: contextOrderItems } = useApp();
+  const { tables, orderItems: contextOrderItems, menuItems } = useApp();
   const [bills, setBills] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
   const [kitchenQueue, setKitchenQueue] = useState([]);
@@ -25,7 +30,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
 
   // Load bills real-time
   useEffect(() => {
-    const dateToUse = selectedDate || new Date().toISOString().split('T')[0];
+    const dateToUse = selectedDate || getVietnamDateString();
     
     const billsQuery = query(
       collection(db, 'bills'),
@@ -63,7 +68,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
   useEffect(() => {
     if (!loading && orderItems.length >= 0) {
       try {
-        const queue = calculateKitchenQueue(bills, orderItems);
+        const queue = calculateKitchenQueue(bills, orderItems, menuItems);
         setKitchenQueue(queue);
 
         const filtered = filterByTable(queue, selectedTable);
@@ -76,7 +81,7 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
         setError('Lỗi tính toán danh sách món');
       }
     }
-  }, [bills, orderItems, selectedTable, loading]);
+  }, [bills, orderItems, menuItems, selectedTable, loading]);
 
   /**
    * Bắt đầu làm món
@@ -86,12 +91,14 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
   const startCooking = async (billId, orderItemId) => {
     try {
       const billRef = doc(db, 'bills', billId);
-      
-      // Cập nhật status của item thành "cooking"
-      const bill = bills.find(b => b.id === billId);
-      if (bill) {
-        const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId || item.customDescription === orderItemId) {
+
+      await runTransaction(db, async (transaction) => {
+        const billSnap = await transaction.get(billRef);
+        if (!billSnap.exists()) return;
+
+        const bill = billSnap.data();
+        const updatedItems = (bill.items || []).map(item => {
+          if (itemMatchesKey(item, orderItemId)) {
             return {
               ...item,
               kitchenStatus: 'cooking',
@@ -101,15 +108,15 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
           return item;
         });
 
-        await updateDoc(billRef, {
+        transaction.update(billRef, {
           items: updatedItems,
           kitchenStatus: 'in_progress',
           updatedAt: serverTimestamp()
         });
-      }
+      });
     } catch (error) {
       console.error('Error starting cooking:', error);
-      setError('Lỗi cập nhật trạng thái món ăn');
+      setError('Loi cap nhat trang thai mon an');
     }
   };
 
@@ -121,33 +128,36 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
   const undoCompleted = async (billId, orderItemId) => {
     try {
       const billRef = doc(db, 'bills', billId);
-      
-      const bill = bills.find(b => b.id === billId);
-      if (bill) {
-        const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId || item.customDescription === orderItemId) {
+
+      await runTransaction(db, async (transaction) => {
+        const billSnap = await transaction.get(billRef);
+        if (!billSnap.exists()) return;
+
+        const bill = billSnap.data();
+        const updatedItems = (bill.items || []).map(item => {
+          if (itemMatchesKey(item, orderItemId)) {
             const completedCount = item.completedCount || 0;
             const newCompletedCount = Math.max(0, completedCount - 1);
-            
+
             return {
               ...item,
               completedCount: newCompletedCount,
-              kitchenStatus: 'cooking', // Chuyển về cooking
-              completedTime: null // Xóa thời gian hoàn thành
+              kitchenStatus: 'cooking',
+              completedTime: null
             };
           }
           return item;
         });
 
-        await updateDoc(billRef, {
+        transaction.update(billRef, {
           items: updatedItems,
-          kitchenStatus: 'in_progress', // Bill chuyển về in_progress
+          kitchenStatus: 'in_progress',
           updatedAt: serverTimestamp()
         });
-      }
+      });
     } catch (error) {
       console.error('Error undoing completed item:', error);
-      setError('Lỗi khi undo món ăn');
+      setError('Loi khi undo mon an');
     }
   };
 
@@ -160,51 +170,50 @@ export const useKitchenOrders = (selectedTable = null, selectedDate = null) => {
   const completeCooking = async (billId, orderItemId, batchOrder = 1) => {
     try {
       const billRef = doc(db, 'bills', billId);
-      
-      // Cập nhật status của item thành "ready"
-      const bill = bills.find(b => b.id === billId);
-      if (bill) {
-        const updatedItems = bill.items.map(item => {
-          if (item.orderItemId === orderItemId || item.menuItemId === orderItemId || item.customDescription === orderItemId) {
-            // Nếu chưa có completedCount, tạo mới
+
+      await runTransaction(db, async (transaction) => {
+        const billSnap = await transaction.get(billRef);
+        if (!billSnap.exists()) return;
+
+        const bill = billSnap.data();
+        const updatedItems = (bill.items || []).map(item => {
+          if (itemMatchesKey(item, orderItemId)) {
             const completedCount = item.completedCount || 0;
-            const newCompletedCount = completedCount + 1;
-            
-            // Nếu đã hoàn thành tất cả phần trong batch
-            if (newCompletedCount >= item.quantity) {
+            const quantity = item.quantity || 1;
+            const newCompletedCount = Math.min(quantity, completedCount + 1);
+
+            if (newCompletedCount >= quantity) {
               return {
                 ...item,
                 kitchenStatus: 'ready',
                 completedTime: new Date(),
                 completedCount: newCompletedCount
               };
-            } else {
-              // Chỉ hoàn thành 1 phần, vẫn giữ status cooking
-              return {
-                ...item,
-                completedCount: newCompletedCount
-              };
             }
+
+            return {
+              ...item,
+              completedCount: newCompletedCount,
+              kitchenStatus: 'cooking'
+            };
           }
           return item;
         });
 
-        // Kiểm tra xem tất cả items đã ready chưa
-        // Chỉ kiểm tra items có quantity > 0 (không kiểm tra pending items)
-        const allReady = updatedItems.every(item => 
-          item.kitchenStatus === 'ready' || 
+        const allReady = updatedItems.every(item =>
+          item.kitchenStatus === 'ready' ||
           (item.completedCount || 0) >= (item.quantity || 1)
         );
 
-        await updateDoc(billRef, {
+        transaction.update(billRef, {
           items: updatedItems,
           kitchenStatus: allReady ? 'completed' : 'in_progress',
           updatedAt: serverTimestamp()
         });
-      }
+      });
     } catch (error) {
       console.error('Error completing cooking:', error);
-      setError('Lỗi cập nhật trạng thái món ăn');
+      setError('Loi cap nhat trang thai mon an');
     }
   };
 

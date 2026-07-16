@@ -60,13 +60,18 @@ export const calculateEstimatedTime = (item, timing) => {
  * @param {Array} orderItems - Danh sách order items
  * @returns {Array} - Danh sách món đã sắp xếp theo ưu tiên
  */
-export const calculateKitchenQueue = (bills, orderItems = []) => {
+export const calculateKitchenQueue = (bills, orderItems = [], menuItems = []) => {
   const currentTime = new Date();
   
   // Map orderItems để lookup nhanh theo ID
   const orderItemsMap = new Map();
   orderItems.forEach(item => {
     orderItemsMap.set(item.id, item);
+  });
+
+  const menuItemsMap = new Map();
+  menuItems.forEach(item => {
+    menuItemsMap.set(item.id, item);
   });
   
   // Flatten tất cả items từ bills và thêm thông tin cần thiết
@@ -109,15 +114,15 @@ export const calculateKitchenQueue = (bills, orderItems = []) => {
             ];
           }
 
-          // Tìm orderItem theo orderItemId
-          const orderItem = orderItemsMap.get(item.orderItemId);
+          const orderItem = item.orderItemId ? orderItemsMap.get(item.orderItemId) : null;
+          const menuItem = item.menuItemId ? menuItemsMap.get(item.menuItemId) : null;
+          const sourceItem = orderItem || menuItem;
 
-          // Lấy speed/kitchenType/priority trực tiếp từ orderItem
-          const timing = orderItem
+          const timing = sourceItem
             ? {
-                speed: orderItem.speed || 'medium',
-                kitchenType: orderItem.kitchenType || 'cook',
-                priority: orderItem.priority || 1,
+                speed: sourceItem.speed || 'medium',
+                kitchenType: sourceItem.kitchenType || 'cook',
+                priority: sourceItem.priority || 1,
               }
             : null;
           
@@ -128,7 +133,8 @@ export const calculateKitchenQueue = (bills, orderItems = []) => {
           const result = [];
           const isAdded = !!item.addedAt;
           const itemCreatedAt = item.addedAt ? new Date(item.addedAt) : bill.createdAt;
-          const itemName = orderItem?.name || item.name || `Món ID: ${item.orderItemId}`;
+          const itemId = item.orderItemId || item.menuItemId || item.customItemId || 'unknown';
+          const itemName = sourceItem?.name || item.name || `Mon ID: ${itemId}`;
 
           // Thêm món đã hoàn thành (hiển thị với status "ready")
           for (let i = 0; i < completedCount; i++) {

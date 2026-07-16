@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { updateBillDetails, deleteBillWithActiveLock } from '../utils/customerOrder';
 import { useApp } from '../context/AppContext';
 import { X, Plus, Minus, Save, Trash2, ShoppingCart } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -46,12 +45,16 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
           name: menuItem?.name ?? item.menuItemId,
           quantity: item.quantity || 1,
           menuItem: menuItem ?? null,
+          _orig: item,
         });
       } else if (item.customDescription) {
+        const customItemId = item.customItemId || `custom_${Date.now()}_${Math.random()}`;
         newCustom.push({
-          id: `custom_${Math.random()}`,
+          id: customItemId,
+          customItemId,
           customDescription: item.customDescription,
           customAmount: item.customAmount,
+          _orig: item,
         });
       }
     });
@@ -130,9 +133,10 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
     setCustomItems(prev => prev.filter(ci => ci.id !== id));
 
   const handleAddCustomItem = ({ customDescription, customAmount }) => {
+    const customItemId = `custom_${Date.now()}_${Math.random()}`;
     setCustomItems(prev => [
       ...prev,
-      { id: `custom_${Date.now()}_${Math.random()}`, customDescription, customAmount },
+      { id: customItemId, customItemId, customDescription, customAmount },
     ]);
     toast.success('Đã thêm món khác');
   };
@@ -206,21 +210,23 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
           _orig ? { ..._orig, quantity: qty } : { orderItemId: id, quantity: qty }
         ),
         // legacy menuItemId items: giữ nguyên format
-        ...legacyItems.map(({ menuItemId, quantity }) => ({ menuItemId, quantity })),
+        ...legacyItems.map(({ menuItemId, quantity, _orig }) =>
+          _orig ? { ..._orig, quantity } : { menuItemId, quantity }
+        ),
         // custom items
-        ...customItems.map(({ customDescription, customAmount }) => ({
-          customDescription,
-          customAmount,
-        })),
+        ...customItems.map(({ customItemId, customDescription, customAmount, _orig }) => (
+          _orig
+            ? { ..._orig, customItemId, customDescription, customAmount, quantity: _orig.quantity || 1 }
+            : { customItemId, customDescription, customAmount, quantity: 1 }
+        )),
       ];
 
-      await updateDoc(doc(db, 'bills', bill.id), {
+      await updateBillDetails(bill, {
         items,
         totalRevenue,
         totalProfit,
         totalCost,
         totalFixedCost,
-        updatedAt: new Date(),
       });
 
       toast.success('Cập nhật đơn hàng thành công!');
@@ -228,7 +234,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
       onClose();
     } catch (error) {
       console.error('Error updating bill:', error);
-      toast.error('Có lỗi xảy ra khi cập nhật đơn hàng');
+      toast.error(error?.message || 'Co loi xay ra khi cap nhat don hang');
     } finally {
       setIsSubmitting(false);
     }
@@ -237,7 +243,7 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
   const handleDeleteBill = async () => {
     setIsSubmitting(true);
     try {
-      await deleteDoc(doc(db, 'bills', bill.id));
+      await deleteBillWithActiveLock(bill);
       toast.success('Xóa đơn hàng thành công!');
       onUpdated();
       onClose();

@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
-import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat, RotateCcw, ArrowLeftRight, X } from 'lucide-react';
+import { Calendar, FileText, Eye, ChevronDown, ChevronUp, Edit, CheckCircle, Clock, ExternalLink, DollarSign, TrendingUp, Package, ChefHat, RotateCcw, ArrowLeftRight, X, AlertTriangle } from 'lucide-react';
 import CustomerPageModal from '../components/CustomerPageModal';
 import { toast } from 'react-toastify';
 import { getBillCostTotalsForReport } from '../utils/billCostTotals';
 import EditBill from '../components/EditBill';
 import KitchenManagement from '../components/KitchenManagement';
+import { markBillPaid, undoBillPaid, changeBillTable, getPendingBillDuplicates } from '../utils/customerOrder';
+import { getVietnamDateString } from '../utils/businessDate';
 
 const BillManagement = () => {
   const { menuItems, orderItems, tables } = useApp();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getVietnamDateString());
   const [expandedBill, setExpandedBill] = useState(null);
   const [billDetails, setBillDetails] = useState({});
   const [editingBill, setEditingBill] = useState(null);
@@ -94,11 +96,7 @@ const BillManagement = () => {
       
       const processPayment = async () => {
         try {
-          await updateDoc(doc(db, 'bills', bill.id), {
-            status: 'paid',
-            paidAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
+          await markBillPaid(bill);
 
           toast.success(`Đã thanh toán`, {
             position: "top-right",
@@ -159,11 +157,7 @@ const BillManagement = () => {
     const doUndo = () => {
       toast.dismiss();
       setProcessingPayment(bill.id);
-      updateDoc(doc(db, 'bills', bill.id), {
-        status: 'pending',
-        paidAt: null,
-        updatedAt: serverTimestamp(),
-      })
+      undoBillPaid(bill)
         .then(() => toast.success(`Đã hoàn tác thanh toán đơn #${bill.id.slice(-6)}`, { autoClose: 2000 }))
         .catch(() => toast.error('Có lỗi khi hoàn tác thanh toán'))
         .finally(() => setProcessingPayment(null));
@@ -362,10 +356,7 @@ const BillManagement = () => {
     if (!changingTableBill) return;
     const fromLabel = getBillLabel(changingTableBill);
     try {
-      await updateDoc(doc(db, 'bills', changingTableBill.id), {
-        tableNumber: parseInt(targetTableNumber),
-        updatedAt: serverTimestamp()
-      });
+      await changeBillTable(changingTableBill, targetTableNumber);
       toast.success(`Đã đổi ${fromLabel} → Bàn ${targetTableNumber}`, { autoClose: 2500 });
       setChangingTableBill(null);
     } catch (error) {
@@ -388,6 +379,7 @@ const BillManagement = () => {
   }
 
   const summary = getTotalSummary();
+  const duplicatePendingBillGroups = getPendingBillDuplicates(bills);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -432,6 +424,18 @@ const BillManagement = () => {
           </div>
         </div>
       </div>
+
+      {duplicatePendingBillGroups.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-medium text-amber-900">Phat hien bill pending bi trung ban</p>
+            <p className="text-sm text-amber-800 mt-1">
+              Co {duplicatePendingBillGroups.length} ban/ngay dang co hon mot bill chua thanh toan. Don moi se duoc ghi vao bill active, nhung du lieu cu can duoc kiem tra thu cong.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Bills List */}
       <div className="bg-white rounded-lg shadow-sm border">

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
@@ -8,6 +8,8 @@ import { Plus, Minus, ShoppingCart, Calculator, ExternalLink } from 'lucide-reac
 import { VoiceOrderButton } from '../components/VoiceOrderButton';
 import { getVoiceOrderMetrics } from '../utils/voiceOrderMetrics';
 import CustomItemForm from '../components/CustomItemForm';
+import { submitTableOrder } from '../utils/customerOrder';
+import { getVietnamDateString } from '../utils/businessDate';
 
 // Categories for menu items
 const CATEGORIES = [
@@ -27,7 +29,7 @@ const CreateBill = () => {
   const [selectedTable, setSelectedTable] = useState('');
   const [showCustomerOrderModal, setShowCustomerOrderModal] = useState(false);
   const [bills, setBills] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getVietnamDateString());
 
   // Custom items (món khác) cho CreateBill
   const [customItems, setCustomItems] = useState([]);
@@ -152,32 +154,27 @@ const CreateBill = () => {
     setIsSubmitting(true);
 
     try {
-      const today = new Date();
-      const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
-
       const menuBillItems = billSummary.items.map(item => ({
         menuItemId: item.menuItemId,
         quantity: item.quantity
       }));
 
       const customBillItems = customItems.map(item => ({
+        customItemId: item.customItemId || item.id,
         customDescription: item.customDescription,
-        customAmount: item.customAmount
+        customAmount: item.customAmount,
+        quantity: 1
       }));
 
-      const billData = {
-        createdAt: serverTimestamp(),
-        date: dateString,
-        tableNumber: parseInt(selectedTable), // Convert to number
-        status: 'pending', // pending, paid
+      await submitTableOrder({
+        tableNumber: selectedTable,
         items: [...menuBillItems, ...customBillItems],
         totalRevenue: totalRevenueWithCustom,
         totalProfit: totalProfitWithCustom,
         totalCost: totalCostWithCustom,
-        totalFixedCost: totalFixedCostWithCustom
-      };
-
-      await addDoc(collection(db, 'bills'), billData);
+        totalFixedCost: totalFixedCostWithCustom,
+        source: 'internal',
+      });
       
       // Reset form
       setQuantities({});
@@ -428,8 +425,10 @@ const CreateBill = () => {
         {/* Custom items (món khác) */}
         <CustomItemForm
           onAdd={({ customDescription, customAmount }) => {
+            const customItemId = `custom_${Date.now()}_${Math.random()}`;
             const newCustomItem = {
-              id: `custom_${Date.now()}_${Math.random()}`,
+              id: customItemId,
+              customItemId,
               customDescription,
               customAmount
             };

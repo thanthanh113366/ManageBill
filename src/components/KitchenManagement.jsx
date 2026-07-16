@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, ChefHat, CheckCircle, Plus } from 'lucide-react';
 import { useKitchenOrders } from '../hooks/useKitchenOrders';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { markBillPaid } from '../utils/customerOrder';
 import { toast } from 'react-toastify';
 
 const formatCurrency = (amount) =>
@@ -21,6 +20,9 @@ const urgencyColor = (minutes) => {
   if (minutes >= 10) return 'text-yellow-600';
   return 'text-green-600';
 };
+
+const getKitchenItemKey = (item) =>
+  item.orderItemId || item.menuItemId || item.customItemId || item.customDescription;
 
 // ── Table Card ────────────────────────────────────────────────────────────────
 
@@ -95,7 +97,7 @@ const TableCard = ({ tableNumber, displayName, items, now, onComplete, onUndo, n
         {/* Món chưa xong — bấm tên để hoàn thành */}
         {pending.map((item, idx) => (
           <button
-            key={`${item.billId}-${item.orderItemId || item.menuItemId || item.customDescription}-${item.batchOrder ?? idx}`}
+            key={`${item.billId}-${getKitchenItemKey(item)}-${item.batchOrder ?? idx}`}
             onClick={() => onComplete(item)}
             className={`w-full text-left px-3 py-2 transition-colors group ${
               item.isAdded ? 'hover:bg-red-50' : 'hover:bg-indigo-50'
@@ -136,7 +138,7 @@ const TableCard = ({ tableNumber, displayName, items, now, onComplete, onUndo, n
         {/* Món đã xong — bấm để undo */}
         {completed.map((item, idx) => (
           <button
-            key={`done-${item.billId}-${item.orderItemId || item.menuItemId || item.customDescription}-${item.batchOrder ?? idx}`}
+            key={`done-${item.billId}-${getKitchenItemKey(item)}-${item.batchOrder ?? idx}`}
             onClick={() => onUndo(item)}
             className="w-full text-left px-3 py-2 hover:bg-orange-50 transition-colors group"
           >
@@ -230,10 +232,10 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
   }, [filteredQueue, bills]);
 
   const handleComplete = (item) =>
-    completeCooking(item.billId, item.orderItemId || item.menuItemId || item.customDescription, item.batchOrder);
+    completeCooking(item.billId, getKitchenItemKey(item), item.batchOrder);
 
   const handleUndo = (item) =>
-    undoCompleted(item.billId, item.orderItemId || item.menuItemId || item.customDescription);
+    undoCompleted(item.billId, getKitchenItemKey(item));
 
   const handleMarkAsPaid = (bill) => {
     if (processingPayment === bill.id) return;
@@ -241,11 +243,7 @@ const KitchenManagement = ({ onClose, selectedDate }) => {
     const confirmPayment = () => {
       toast.dismiss();
       setProcessingPayment(bill.id);
-      updateDoc(doc(db, 'bills', bill.id), {
-        status: 'paid',
-        paidAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
+      markBillPaid(bill)
         .then(() => toast.success(`Bàn ${bill.tableNumber} đã thanh toán`, { autoClose: 2000 }))
         .catch(() => toast.error('Có lỗi khi cập nhật thanh toán'))
         .finally(() => setProcessingPayment(null));

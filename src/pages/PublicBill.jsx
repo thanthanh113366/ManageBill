@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Clock, Receipt, CheckCircle, ArrowLeftRight, ChevronDown, X, UtensilsCrossed } from 'lucide-react';
+import { getVietnamDateString } from '../utils/businessDate';
 
 const PublicBill = () => {
   const { tableNumber } = useParams();
@@ -60,7 +61,7 @@ const PublicBill = () => {
   useEffect(() => {
     if (!tableNumber) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getVietnamDateString();
 
     // Query tất cả bills của ngày hôm nay (không filter tableNumber trong query)
     const q = query(

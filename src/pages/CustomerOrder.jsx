@@ -320,8 +320,7 @@ const CustomerOrder = () => {
         summary.totalProfit,
         note,
         summary.totalCost,
-        summary.totalFixedCost,
-        existingBill  // dùng bill đã load sẵn từ state, tránh query Firestore lại
+        summary.totalFixedCost
       );
       if (isTakeawayTable && existingBill?.takeawayNumber) {
         navigate(`/order-success/MV-${existingBill.takeawayNumber}`);

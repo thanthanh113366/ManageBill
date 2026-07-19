@@ -117,6 +117,35 @@ const mergeNote = (oldNote = '', newNote = '') => {
   return existingNote || nextNote;
 };
 
+const validateOrderItemsAvailable = async (transaction, items = []) => {
+  const orderItemIds = Array.from(
+    new Set(items.map((item) => item.orderItemId).filter(Boolean))
+  );
+
+  if (orderItemIds.length === 0) return;
+
+  const unavailableNames = [];
+
+  for (const orderItemId of orderItemIds) {
+    const orderItemRef = doc(db, 'orderItems', orderItemId);
+    const orderItemSnap = await transaction.get(orderItemRef);
+
+    if (!orderItemSnap.exists()) {
+      unavailableNames.push('Món không tồn tại');
+      continue;
+    }
+
+    const orderItem = orderItemSnap.data();
+    if (orderItem.isAvailable === false) {
+      unavailableNames.push(orderItem.name || 'Món đã hết');
+    }
+  }
+
+  if (unavailableNames.length > 0) {
+    throw new Error(`Món đã hết: ${unavailableNames.join(', ')}. Vui lòng chọn lại.`);
+  }
+};
+
 const findPendingBillsForTable = async (tableNumber, date = getVietnamDateString()) => {
   const parsedTableNumber = normalizeTableNumber(tableNumber);
   const q = query(
@@ -207,6 +236,8 @@ export const submitTableOrder = async ({
   let billId = null;
 
   await runTransaction(db, async (transaction) => {
+    await validateOrderItemsAvailable(transaction, items);
+
     const lockSnap = await transaction.get(lockRef);
     const lockedTarget = await resolveLockedBill(transaction, lockSnap, date, parsedTableNumber);
     const fallbackTarget = lockedTarget
@@ -483,6 +514,8 @@ export const createTakeawayOrder = async (
   let takeawayNumber = null;
 
   await runTransaction(db, async (transaction) => {
+    await validateOrderItemsAvailable(transaction, items);
+
     const counterRef = getTakeawayCounterRef(today);
     const counterSnap = await transaction.get(counterRef);
     const counterLastNumber = counterSnap.exists()

@@ -203,7 +203,7 @@ const TakeawayOrder = () => {
       navigate(`/order-success/MV-${takeawayNumber}`);
     } catch (error) {
       console.error(error);
-      toast.error('Có lỗi xảy ra. Vui lòng thử lại!');
+      toast.error(error.message || 'Có lỗi xảy ra. Vui lòng thử lại!');
     } finally {
       setIsSubmitting(false);
     }

@@ -1,18 +1,53 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { CheckCircle, Image as ImageIcon } from 'lucide-react';
-
-const QR_OPTIONS = [
-  { id: 'qr1', name: 'QR Trân', path: '/my_qr_1.jpg' },
-  { id: 'qr2', name: 'QR Trúc', path: '/my_qr_2.jpg' },
-  { id: 'qr3', name: 'QR 3', path: '/my_qr_3.jpg' },
-];
+import { db } from '../config/firebase';
+import {
+  DEFAULT_PAYMENT_QR,
+  PAYMENT_QR_OPTIONS,
+  PAYMENT_QR_SETTINGS_COLLECTION,
+  PAYMENT_QR_SETTINGS_DOC,
+  isValidPaymentQRPath,
+} from '../utils/paymentQR';
 
 const PaymentQRManager = () => {
-  const [defaultQR, setDefaultQR] = useState(() => localStorage.getItem('defaultPaymentQR') || '/my_qr_1.jpg');
+  const [defaultQR, setDefaultQR] = useState(DEFAULT_PAYMENT_QR);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSetDefault = (qrPath) => {
+  useEffect(() => {
+    const settingsRef = doc(db, PAYMENT_QR_SETTINGS_COLLECTION, PAYMENT_QR_SETTINGS_DOC);
+    const unsubscribe = onSnapshot(
+      settingsRef,
+      (snapshot) => {
+        const savedQR = snapshot.data()?.defaultQR;
+        setDefaultQR(isValidPaymentQRPath(savedQR) ? savedQR : DEFAULT_PAYMENT_QR);
+      },
+      (error) => {
+        console.error('Error loading payment QR setting:', error);
+        setDefaultQR(DEFAULT_PAYMENT_QR);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSetDefault = async (qrPath) => {
+    if (!isValidPaymentQRPath(qrPath)) return;
+
+    setIsSaving(true);
     setDefaultQR(qrPath);
-    localStorage.setItem('defaultPaymentQR', qrPath);
+    try {
+      await setDoc(
+        doc(db, PAYMENT_QR_SETTINGS_COLLECTION, PAYMENT_QR_SETTINGS_DOC),
+        { defaultQR: qrPath, updatedAt: new Date() },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error('Error saving payment QR setting:', error);
+      setDefaultQR(DEFAULT_PAYMENT_QR);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -26,7 +61,7 @@ const PaymentQRManager = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {QR_OPTIONS.map((qr) => {
+        {PAYMENT_QR_OPTIONS.map((qr) => {
           const active = defaultQR === qr.path;
 
           return (
@@ -66,7 +101,7 @@ const PaymentQRManager = () => {
               <button
                 type="button"
                 onClick={() => handleSetDefault(qr.path)}
-                disabled={active}
+                disabled={active || isSaving}
                 className={active ? 'btn-primary w-full justify-center' : 'btn-secondary w-full justify-center'}
               >
                 {active ? 'Đang sử dụng' : 'Đặt làm mặc định'}
@@ -77,7 +112,7 @@ const PaymentQRManager = () => {
       </div>
 
       <div className="mt-5 rounded-lg border border-sky-100 bg-sky-50 p-4 text-sm text-sky-800">
-        QR mặc định được lưu trên trình duyệt hiện tại và dùng cho trang hóa đơn khách hàng.
+        QR mặc định được đồng bộ cho tất cả thiết bị admin và trang hóa đơn khách hàng.
       </div>
     </section>
   );

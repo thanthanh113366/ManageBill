@@ -1,11 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { ArrowLeftRight, CheckCircle, ChevronRight, Clock, Receipt, UtensilsCrossed, X } from 'lucide-react';
 import { db } from '../config/firebase';
 import { StatusPill } from '../components/ui';
 import { getVietnamDateString } from '../utils/businessDate';
 import { formatCurrency } from '../components/PublicOrderComponents';
+import {
+  DEFAULT_PAYMENT_QR,
+  PAYMENT_QR_SETTINGS_COLLECTION,
+  PAYMENT_QR_SETTINGS_DOC,
+  isValidPaymentQRPath,
+} from '../utils/paymentQR';
 
 const PublicBill = () => {
   const { tableNumber } = useParams();
@@ -17,11 +23,25 @@ const PublicBill = () => {
   const [orderItems, setOrderItems] = useState([]);
   const [tables, setTables] = useState([]);
   const [showTableSwitcher, setShowTableSwitcher] = useState(false);
-  const [defaultQR, setDefaultQR] = useState('/my_qr_1.jpg');
+  const [defaultQR, setDefaultQR] = useState(DEFAULT_PAYMENT_QR);
   const [qrBroken, setQrBroken] = useState(false);
 
   useEffect(() => {
-    setDefaultQR(localStorage.getItem('defaultPaymentQR') || '/my_qr_1.jpg');
+    const settingsRef = doc(db, PAYMENT_QR_SETTINGS_COLLECTION, PAYMENT_QR_SETTINGS_DOC);
+    const unsubscribe = onSnapshot(
+      settingsRef,
+      (snapshot) => {
+        const savedQR = snapshot.data()?.defaultQR;
+        setDefaultQR(isValidPaymentQRPath(savedQR) ? savedQR : DEFAULT_PAYMENT_QR);
+        setQrBroken(false);
+      },
+      (error) => {
+        console.error('Error loading payment QR setting:', error);
+        setDefaultQR(DEFAULT_PAYMENT_QR);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {

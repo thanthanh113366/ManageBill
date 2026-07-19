@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { collection, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useApp } from '../context/AppContext';
@@ -224,6 +224,7 @@ const MenuManagement = () => {
   const [layoutMode, setLayoutMode] = useState(false);
   const [layoutDraft, setLayoutDraft] = useState({});
   const [isSavingLayout, setIsSavingLayout] = useState(false);
+  const [togglingMenuItemId, setTogglingMenuItemId] = useState(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -284,6 +285,48 @@ const MenuManagement = () => {
       toast.error('Lỗi khi lưu bố cục');
     } finally {
       setIsSavingLayout(false);
+    }
+  };
+
+  const menuAvailabilityGroups = useMemo(() => {
+    const orderItemsByParent = orderItems.reduce((acc, item) => {
+      if (!item.parentMenuItemId) return acc;
+      if (!acc[item.parentMenuItemId]) acc[item.parentMenuItemId] = [];
+      acc[item.parentMenuItemId].push(item);
+      return acc;
+    }, {});
+
+    return menuItems
+      .map((menuItem) => {
+        const children = orderItemsByParent[menuItem.id] || [];
+        const availableCount = children.filter((item) => item.isAvailable !== false).length;
+        return {
+          menuItem,
+          children,
+          availableCount,
+          allAvailable: children.length > 0 && availableCount === children.length,
+          allUnavailable: children.length > 0 && availableCount === 0,
+        };
+      })
+      .filter((group) => group.children.length > 0);
+  }, [menuItems, orderItems]);
+
+  const toggleMenuItemAvailability = async (group) => {
+    const next = group.allAvailable ? false : true;
+    setTogglingMenuItemId(group.menuItem.id);
+
+    try {
+      const batch = writeBatch(db);
+      group.children.forEach((item) => {
+        batch.update(doc(db, 'orderItems', item.id), { isAvailable: next });
+      });
+      await batch.commit();
+      toast.success(`${next ? 'Đã bật' : 'Đã tắt'} ${group.children.length} món thuộc ${group.menuItem.name}`);
+    } catch (error) {
+      console.error('Error toggling menu item availability:', error);
+      toast.error('Có lỗi xảy ra khi cập nhật món');
+    } finally {
+      setTogglingMenuItemId(null);
     }
   };
 
@@ -786,100 +829,160 @@ const MenuManagement = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Tên món
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Có hôm nay
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Danh mục
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Món cha
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Hình ảnh
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Thao tác
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {orderItems.map((item) => (
-                            <tr key={item.id} className={`hover:bg-gray-50 ${item.isAvailable === false ? 'opacity-50' : ''}`}>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {item.name}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <div className="space-y-6">
+                      {menuAvailabilityGroups.length > 0 && (
+                        <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <h3 className="text-sm font-semibold text-gray-900">Tắt nhanh theo món menu</h3>
+                            </div>
+                            <span className="text-xs font-medium text-gray-500">
+                              {menuAvailabilityGroups.length} món menu
+                            </span>
+                          </div>
+
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {menuAvailabilityGroups.map((group) => {
+                              const isProcessing = togglingMenuItemId === group.menuItem.id;
+                              const statusLabel = group.allUnavailable
+                                ? 'Đang tắt'
+                                : group.allAvailable
+                                  ? 'Đang bật'
+                                  : `${group.availableCount}/${group.children.length} đang bật`;
+
+                              return (
                                 <button
-                                  onClick={async () => {
-                                    const next = item.isAvailable === false ? true : false;
-                                    await updateDoc(doc(db, 'orderItems', item.id), { isAvailable: next });
-                                  }}
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                                    item.isAvailable === false ? 'bg-gray-300' : 'bg-indigo-500'
+                                  key={group.menuItem.id}
+                                  type="button"
+                                  onClick={() => toggleMenuItemAvailability(group)}
+                                  disabled={isProcessing}
+                                  className={`flex min-h-[72px] items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-left shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50/40 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    group.allUnavailable ? 'border-gray-200 opacity-70' : 'border-gray-200'
                                   }`}
-                                  title={item.isAvailable === false ? 'Đang ẩn — bấm để hiện lại' : 'Đang hiện — bấm để ẩn'}
+                                  title={group.allAvailable ? 'Bấm để tắt tất cả món con' : 'Bấm để bật tất cả món con'}
                                 >
-                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                                    item.isAvailable === false ? 'translate-x-1' : 'translate-x-6'
-                                  }`} />
-                                </button>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                  {getOrderCategoryLabel(item.category || 'oc')}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">
-                                  {getParentMenuItemName(item.parentMenuItemId)}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                {item.imageUrl ? (
-                                  <img
-                                    src={item.imageUrl}
-                                    alt={item.name}
-                                    className="w-12 h-12 object-cover rounded-lg"
-                                    onError={(e) => {
-                                      e.target.style.display = 'none';
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                                    <ShoppingBag size={20} className="text-gray-400" />
+                                  <div className="min-w-0">
+                                    <p className={`truncate text-sm font-semibold ${group.allUnavailable ? 'text-gray-500' : 'text-gray-900'}`}>
+                                      {group.menuItem.name}
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      {group.children.length} món con · {statusLabel}
+                                    </p>
                                   </div>
-                                )}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <div className="flex justify-end space-x-2">
-                                  <button
-                                    onClick={() => openModal(item, 'orderItems')}
-                                    className="text-indigo-600 hover:text-indigo-900 p-1"
-                                  >
-                                    <Edit size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(item, 'orderItems')}
-                                    className="text-red-600 hover:text-red-900 p-1"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
+
+                                  <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                                    group.allUnavailable ? 'bg-gray-300' : group.allAvailable ? 'bg-indigo-500' : 'bg-amber-400'
+                                  }`}>
+                                    {isProcessing ? (
+                                      <span className="mx-auto h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                    ) : (
+                                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                                        group.allUnavailable ? 'translate-x-1' : 'translate-x-6'
+                                      }`} />
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      )}
+
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tên món
+                              </th>
+                              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Có hôm nay
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Danh mục
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Món cha
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Hình ảnh
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Thao tác
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {orderItems.map((item) => (
+                              <tr key={item.id} className={`hover:bg-gray-50 ${item.isAvailable === false ? 'opacity-50' : ''}`}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {item.name}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                  <button
+                                    onClick={async () => {
+                                      const next = item.isAvailable === false ? true : false;
+                                      await updateDoc(doc(db, 'orderItems', item.id), { isAvailable: next });
+                                    }}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                                      item.isAvailable === false ? 'bg-gray-300' : 'bg-indigo-500'
+                                    }`}
+                                    title={item.isAvailable === false ? 'Đang ẩn — bấm để hiện lại' : 'Đang hiện — bấm để ẩn'}
+                                  >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                                      item.isAvailable === false ? 'translate-x-1' : 'translate-x-6'
+                                    }`} />
+                                  </button>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    {getOrderCategoryLabel(item.category || 'oc')}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-900">
+                                    {getParentMenuItemName(item.parentMenuItemId)}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {item.imageUrl ? (
+                                    <img
+                                      src={item.imageUrl}
+                                      alt={item.name}
+                                      className="w-12 h-12 object-cover rounded-lg"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                      <ShoppingBag size={20} className="text-gray-400" />
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  <div className="flex justify-end space-x-2">
+                                    <button
+                                      onClick={() => openModal(item, 'orderItems')}
+                                      className="text-indigo-600 hover:text-indigo-900 p-1"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(item, 'orderItems')}
+                                      className="text-red-600 hover:text-red-900 p-1"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </>
@@ -1431,4 +1534,4 @@ const MenuManagement = () => {
   );
 };
 
-export default MenuManagement; 
+export default MenuManagement;

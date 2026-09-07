@@ -12,7 +12,7 @@ import {
   OrderSkeleton,
   PublicOrderHeader,
 } from '../components/PublicOrderComponents';
-import { calculateOrderItemTotals } from '../utils/billCalculations';
+import { buildOrderItemBillSnapshot, calculateOrderItemTotals } from '../utils/billCalculations';
 import { createTakeawayOrder } from '../utils/customerOrder';
 
 const TakeawayOrder = () => {
@@ -160,7 +160,7 @@ const TakeawayOrder = () => {
         totalCost += totals.cost;
         totalFixedCost += totals.fixedCost;
         totalItems += qty;
-        items.push({ orderItemId, quantity: qty, name: orderItem.name, price: totals.price, revenue: totals.revenue });
+        items.push(buildOrderItemBillSnapshot(orderItem, parentMenuItem, qty));
       } else {
         invalidItems.push(orderItem.name);
       }
@@ -191,9 +191,8 @@ const TakeawayOrder = () => {
   const handleConfirmOrder = async () => {
     setIsSubmitting(true);
     try {
-      const billItems = summary.items.map(({ orderItemId, quantity }) => ({ orderItemId, quantity }));
       const takeawayNumber = await createTakeawayOrder(
-        billItems,
+        summary.items,
         summary.totalRevenue,
         summary.totalProfit,
         note,

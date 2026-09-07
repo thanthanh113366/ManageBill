@@ -10,6 +10,7 @@ import { getVoiceOrderMetrics } from '../utils/voiceOrderMetrics';
 import CustomItemForm from '../components/CustomItemForm';
 import { submitTableOrder } from '../utils/customerOrder';
 import { getVietnamDateString } from '../utils/businessDate';
+import { buildCustomBillSnapshot, buildMenuItemBillSnapshot } from '../utils/billCalculations';
 import { EmptyState, PageHeader, StatusPill, SurfaceCard } from '../components/ui';
 
 const CATEGORIES = [
@@ -61,14 +62,7 @@ const CreateBill = () => {
           totalFixedCost += (menuItem.fixedCost || 0) * quantity;
           totalItems += quantity;
 
-          items.push({
-            menuItemId,
-            quantity,
-            name: menuItem.name,
-            price: menuItem.price,
-            revenue: itemRevenue,
-            profit: itemProfit,
-          });
+          items.push(buildMenuItemBillSnapshot(menuItem, quantity));
         }
       }
     });
@@ -144,21 +138,18 @@ const CreateBill = () => {
     setIsSubmitting(true);
 
     try {
-      const menuBillItems = billSummary.items.map((item) => ({
-        menuItemId: item.menuItemId,
-        quantity: item.quantity,
-      }));
-
-      const customBillItems = customItems.map((item) => ({
-        customItemId: item.customItemId || item.id,
-        customDescription: item.customDescription,
-        customAmount: item.customAmount,
-        quantity: 1,
-      }));
+      const customBillItems = customItems.map((item) =>
+        buildCustomBillSnapshot({
+          customItemId: item.customItemId || item.id,
+          customDescription: item.customDescription,
+          customAmount: item.customAmount,
+          quantity: 1,
+        })
+      );
 
       await submitTableOrder({
         tableNumber: selectedTable,
-        items: [...menuBillItems, ...customBillItems],
+        items: [...billSummary.items, ...customBillItems],
         totalRevenue: totalRevenueWithCustom,
         totalProfit: totalProfitWithCustom,
         totalCost: totalCostWithCustom,

@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { getVietnamDateString } from './businessDate';
+import { recalculateBillLineSnapshotTotals } from './billCalculations';
 
 const ACTIVE_BILLS_COLLECTION = 'activeBills';
 const TAKEAWAY_COUNTERS_COLLECTION = 'takeawayCounters';
@@ -62,7 +63,7 @@ const normalizeItems = (items, { markAsAdded = false } = {}) => {
   const addedAt = markAsAdded ? new Date().toISOString() : null;
 
   return items.map((item) => ({
-    ...item,
+    ...recalculateBillLineSnapshotTotals(item),
     ...(item.customDescription && !item.customItemId ? { customItemId: createCustomItemId() } : {}),
     quantity: item.quantity || 1,
     kitchenStatus: item.kitchenStatus || 'cooking',
@@ -90,15 +91,15 @@ const mergeItems = (currentItems = [], incomingItems = []) => {
 
     const index = mergedItems.findIndex((item) => getMergeKey(item) === key);
     if (index >= 0) {
-      mergedItems[index] = {
+      mergedItems[index] = recalculateBillLineSnapshotTotals({
         ...mergedItems[index],
         quantity: (mergedItems[index].quantity || 1) + (newItem.quantity || 1),
         addedAt,
         kitchenStatus: 'cooking',
-      };
+      });
     } else {
       mergedItems.push({
-        ...newItem,
+        ...recalculateBillLineSnapshotTotals(newItem),
         ...(newItem.customDescription && !newItem.customItemId ? { customItemId: createCustomItemId() } : {}),
         quantity: newItem.quantity || 1,
         addedAt,

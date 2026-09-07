@@ -16,6 +16,23 @@
  * @returns {{ menuItem: object|null, resolvedKey: string|null }}
  */
 const resolveMenuItemForBillLine = (item, menuItems, orderItems) => {
+  if (item.price != null && item.name) {
+    const resolvedKey =
+      item.menuItemId || item.parentMenuItemId || item.orderItemId || item.customItemId || item.name;
+    return {
+      menuItem: {
+        id: resolvedKey,
+        name: item.name,
+        category: item.category || 'other',
+        price: item.price || 0,
+        costPrice: item.costPrice || 0,
+        fixedCost: item.fixedCost || 0,
+        tax: item.tax || 0,
+      },
+      resolvedKey,
+    };
+  }
+
   if (item.menuItemId) {
     const menuItem = menuItems.find(m => m.id === item.menuItemId);
     return { menuItem: menuItem || null, resolvedKey: item.menuItemId };
@@ -79,11 +96,11 @@ export const calculateDishStats = (bills, menuItems, dateRange = null, orderItem
       if (!menuItem || !resolvedKey) return;
 
       const quantity = item.quantity || 0;
-      const revenue = menuItem.price * quantity;
-      const costPrice = (menuItem.costPrice || 0) * quantity;
-      const fixedCost = (menuItem.fixedCost || 0) * quantity;
+      const revenue = item.revenue ?? menuItem.price * quantity;
+      const costPrice = item.cost ?? (menuItem.costPrice || 0) * quantity;
+      const fixedCost = item.fixedCostTotal ?? (menuItem.fixedCost || 0) * quantity;
       const tax = (menuItem.price * (menuItem.tax || 0) / 100) * quantity;
-      const profit = revenue - costPrice - fixedCost - tax;
+      const profit = item.profit ?? revenue - costPrice - fixedCost - tax;
 
       // Get or create stats for this dish
       if (!dishStatsMap.has(resolvedKey)) {
@@ -298,4 +315,3 @@ export const getTrendColor = (trend) => {
       return 'text-gray-600';
   }
 };
-

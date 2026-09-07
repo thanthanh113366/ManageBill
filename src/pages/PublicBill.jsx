@@ -107,9 +107,29 @@ const PublicBill = () => {
       setBillDetails([]);
       return;
     }
-    if (menuItems.length === 0 || orderItems.length === 0) return;
+
+    const needsMenuItems = (bill.items || []).some((item) => item.price == null && item.menuItemId);
+    const needsOrderItems = (bill.items || []).some((item) => item.price == null && item.orderItemId);
+    if ((needsMenuItems && menuItems.length === 0) || (needsOrderItems && orderItems.length === 0)) return;
 
     const details = (bill.items || []).map((item) => {
+      if (item.price != null && item.name) {
+        const quantity = item.quantity || 1;
+        const itemTotal = item.revenue ?? item.price * quantity;
+        const taxAmount = itemTotal * ((item.tax || 0) / 100);
+        return {
+          ...item,
+          type: item.orderItemId ? 'orderItem' : item.customDescription ? 'custom' : 'menu',
+          name: item.name,
+          price: item.price,
+          tax: item.tax || 0,
+          quantity,
+          itemTotal,
+          taxAmount,
+          finalPrice: itemTotal + taxAmount,
+        };
+      }
+
       if (item.menuItemId) {
         const menuItem = menuItems.find((candidate) => candidate.id === item.menuItemId);
         if (!menuItem) return null;

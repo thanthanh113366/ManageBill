@@ -4,6 +4,12 @@ import { useApp } from '../context/AppContext';
 import { X, Plus, Minus, Save, Trash2, ShoppingCart } from 'lucide-react';
 import { toast } from 'react-toastify';
 import CustomItemForm from './CustomItemForm';
+import {
+  buildCustomBillSnapshot,
+  buildMenuItemBillSnapshot,
+  buildOrderItemBillSnapshot,
+  recalculateBillLineSnapshotTotals,
+} from '../utils/billCalculations';
 
 const CATEGORIES = [
   { id: 'oc', name: 'Ốc', emoji: '🐚' },
@@ -147,6 +153,16 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
 
     // orderItemId items
     Object.entries(cart).forEach(([id, { qty }]) => {
+      const original = cart[id]?._orig;
+      if (original?.price != null) {
+        const snapshot = recalculateBillLineSnapshotTotals({ ...original, quantity: qty });
+        totalRevenue += snapshot.revenue || 0;
+        totalCost += snapshot.cost || 0;
+        totalFixedCost += snapshot.fixedCostTotal || 0;
+        totalProfit += snapshot.profit || 0;
+        return;
+      }
+
       const oi = allOrderItems.find(o => o.id === id);
       if (!oi) return;
       const parent = oi.parentMenuItemId
@@ -161,11 +177,20 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
       totalRevenue += revenue;
       totalCost += costPrice * qty;
       totalFixedCost += fixedCost * qty;
-      totalProfit += (price - costPrice - fixedCost - taxAmt) * qty;
+      totalProfit += revenue - costPrice * qty - fixedCost * qty - taxAmt;
     });
 
     // legacy menuItemId items
-    legacyItems.forEach(({ menuItem, quantity }) => {
+    legacyItems.forEach(({ menuItem, quantity, _orig }) => {
+      if (_orig?.price != null) {
+        const snapshot = recalculateBillLineSnapshotTotals({ ..._orig, quantity });
+        totalRevenue += snapshot.revenue || 0;
+        totalCost += snapshot.cost || 0;
+        totalFixedCost += snapshot.fixedCostTotal || 0;
+        totalProfit += snapshot.profit || 0;
+        return;
+      }
+
       if (!menuItem) return;
       const price = menuItem.price ?? 0;
       const costPrice = menuItem.costPrice ?? 0;
@@ -176,13 +201,14 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
       totalRevenue += revenue;
       totalCost += costPrice * quantity;
       totalFixedCost += fixedCost * quantity;
-      totalProfit += (price - costPrice - fixedCost - taxAmt) * quantity;
+      totalProfit += revenue - costPrice * quantity - fixedCost * quantity - taxAmt;
     });
 
     // custom items
-    customItems.forEach(({ customAmount }) => {
-      totalRevenue += customAmount;
-      totalProfit += customAmount;
+    customItems.forEach(({ customAmount, quantity = 1 }) => {
+      const revenue = Number(customAmount || 0) * quantity;
+      totalRevenue += revenue;
+      totalProfit += revenue;
     });
 
     return { totalRevenue, totalProfit, totalCost, totalFixedCost };
@@ -206,18 +232,24 @@ const EditBill = ({ bill, onClose, onUpdated }) => {
       const items = [
         // orderItemId items: spread _orig để giữ nguyên kitchenStatus/completedCount/addedAt
         // Chỉ override quantity theo thay đổi của admin
-        ...Object.entries(cart).map(([id, { qty, _orig }]) =>
-          _orig ? { ..._orig, quantity: qty } : { orderItemId: id, quantity: qty }
-        ),
+        ...Object.entries(cart).map(([id, { qty, _orig }]) => {
+          if (_orig) return recalculateBillLineSnapshotTotals({ ..._orig, quantity: qty });
+          const oi = allOrderItems.find((item) => item.id === id);
+          const parent = oi?.parentMenuItemId
+            ? menuItems.find((item) => item.id === oi.parentMenuItemId)
+            : null;
+          return oi ? buildOrderItemBillSnapshot(oi, parent, qty) : { orderItemId: id, quantity: qty };
+        }),
         // legacy menuItemId items: giữ nguyên format
-        ...legacyItems.map(({ menuItemId, quantity, _orig }) =>
-          _orig ? { ..._orig, quantity } : { menuItemId, quantity }
-        ),
+        ...legacyItems.map(({ menuItemId, quantity, menuItem, _orig }) => {
+          if (_orig) return recalculateBillLineSnapshotTotals({ ..._orig, quantity });
+          return menuItem ? buildMenuItemBillSnapshot(menuItem, quantity) : { menuItemId, quantity };
+        }),
         // custom items
         ...customItems.map(({ customItemId, customDescription, customAmount, _orig }) => (
           _orig
-            ? { ..._orig, customItemId, customDescription, customAmount, quantity: _orig.quantity || 1 }
-            : { customItemId, customDescription, customAmount, quantity: 1 }
+            ? recalculateBillLineSnapshotTotals({ ..._orig, customItemId, customDescription, customAmount, quantity: _orig.quantity || 1 })
+            : buildCustomBillSnapshot({ customItemId, customDescription, customAmount, quantity: 1 })
         )),
       ];
 

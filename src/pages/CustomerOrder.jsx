@@ -13,7 +13,7 @@ import {
   OrderSkeleton,
   PublicOrderHeader,
 } from '../components/PublicOrderComponents';
-import { calculateOrderItemTotals } from '../utils/billCalculations';
+import { buildOrderItemBillSnapshot, calculateOrderItemTotals } from '../utils/billCalculations';
 import { getActiveBillForTable, submitCustomerOrder } from '../utils/customerOrder';
 import {
   CUSTOMER_NOTICE_SETTINGS_COLLECTION,
@@ -204,7 +204,7 @@ const CustomerOrder = () => {
         totalCost += totals.cost;
         totalFixedCost += totals.fixedCost;
         totalItems += qty;
-        items.push({ orderItemId, quantity: qty, name: orderItem.name, price: totals.price, revenue: totals.revenue });
+        items.push(buildOrderItemBillSnapshot(orderItem, parentMenuItem, qty));
       } else {
         invalidItems.push(orderItem.name);
       }
@@ -217,6 +217,15 @@ const CustomerOrder = () => {
     if (!existingBill?.items) return [];
 
     return existingBill.items.map((item) => {
+      if (item.price != null && item.name) {
+        return {
+          key: item.orderItemId || item.menuItemId || item.customItemId || item.name,
+          name: item.name,
+          quantity: item.quantity || 1,
+          price: item.price,
+        };
+      }
+
       if (item.orderItemId) {
         const orderItem = orderItems.find((candidate) => candidate.id === item.orderItemId);
         const parentMenuItem = orderItem ? menuItems.find((candidate) => candidate.id === orderItem.parentMenuItemId) : null;
@@ -263,10 +272,9 @@ const CustomerOrder = () => {
   const handleConfirmOrder = async () => {
     setIsSubmitting(true);
     try {
-      const billItems = summary.items.map(({ orderItemId, quantity }) => ({ orderItemId, quantity }));
       await submitCustomerOrder(
         tableNumber,
-        billItems,
+        summary.items,
         summary.totalRevenue,
         summary.totalProfit,
         note,

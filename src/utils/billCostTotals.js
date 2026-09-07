@@ -30,6 +30,16 @@ export const computeBillCostTotalsFromItems = (bill, menuItems, orderItems) => {
   if (!bill.items?.length) return { costPrice, fixedCost };
 
   bill.items.forEach((item) => {
+    if (item.cost != null && item.fixedCostTotal != null) {
+      const storedCost = Number(item.cost);
+      const storedFixedCost = Number(item.fixedCostTotal);
+      if (Number.isFinite(storedCost) && Number.isFinite(storedFixedCost)) {
+        costPrice += storedCost;
+        fixedCost += storedFixedCost;
+        return;
+      }
+    }
+
     const menuItem = resolveMenuItemForBillLine(item, menuItems, orderItems);
     if (menuItem) {
       costPrice += (menuItem.costPrice || 0) * (item.quantity || 0);

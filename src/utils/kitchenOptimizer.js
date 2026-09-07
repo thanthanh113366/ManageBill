@@ -104,7 +104,7 @@ export const calculateKitchenQueue = (bills, orderItems = [], menuItems = []) =>
             const menuItem = item.menuItemId ? menuItemsMap.get(item.menuItemId) : null;
             const sourceItem = orderItem || menuItem;
             const itemId = item.orderItemId || item.menuItemId || item.customItemId || 'unknown';
-            const name = item.customDescription || sourceItem?.name || item.name || `Mon ID: ${itemId}`;
+            const name = item.customDescription || item.name || sourceItem?.name || `Mon ID: ${itemId}`;
             const timing = buildTiming(sourceItem, {
               speed: item.speed,
               kitchenType: item.kitchenType,

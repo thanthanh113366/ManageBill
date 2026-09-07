@@ -169,6 +169,23 @@ const BillManagement = () => {
 
     const detailedItems = await Promise.all(
       (bill.items || []).map(async (item) => {
+        if (item.price != null && item.name) {
+          const quantity = item.quantity || 1;
+          return {
+            ...item,
+            menuItem: {
+              name: item.name,
+              price: item.price,
+              tax: item.tax || 0,
+              costPrice: item.costPrice || 0,
+              fixedCost: item.fixedCost || 0,
+              category: item.category,
+            },
+            itemRevenue: item.revenue ?? item.price * quantity,
+            type: item.customDescription ? 'custom' : 'menu',
+          };
+        }
+
         if (item.menuItemId) {
           const menuItem = menuItems.find((m) => m.id === item.menuItemId);
           if (!menuItem) return null;

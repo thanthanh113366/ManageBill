@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { db } from '../config/firebase';
 import {
@@ -15,6 +15,12 @@ import {
 } from '../components/PublicOrderComponents';
 import { calculateOrderItemTotals } from '../utils/billCalculations';
 import { getActiveBillForTable, submitCustomerOrder } from '../utils/customerOrder';
+import {
+  CUSTOMER_NOTICE_SETTINGS_COLLECTION,
+  CUSTOMER_NOTICE_SETTINGS_DOC,
+  isCustomerNoticeVisible,
+  normalizeCustomerNotice,
+} from '../utils/customerNotice';
 
 const CustomerOrder = () => {
   const { tableNumber } = useParams();
@@ -34,6 +40,7 @@ const CustomerOrder = () => {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].value);
+  const [customerNotice, setCustomerNotice] = useState(null);
 
   const headerRef = useRef(null);
   const tabsContainerRef = useRef(null);
@@ -44,6 +51,21 @@ const CustomerOrder = () => {
     document.body.style.overflow = showConfirmModal ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [showConfirmModal]);
+
+  useEffect(() => {
+    const noticeRef = doc(
+      db,
+      CUSTOMER_NOTICE_SETTINGS_COLLECTION,
+      CUSTOMER_NOTICE_SETTINGS_DOC
+    );
+
+    getDoc(noticeRef)
+      .then((snapshot) => setCustomerNotice(normalizeCustomerNotice(snapshot.data())))
+      .catch((error) => {
+        console.error('Error loading customer notice:', error);
+        setCustomerNotice(null);
+      });
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, 'orderItems'), orderBy('category'), orderBy('name'));
@@ -280,6 +302,12 @@ const CustomerOrder = () => {
       />
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-5">
+        {isCustomerNoticeVisible(customerNotice) && (
+          <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900 shadow-sm">
+            {customerNotice.message}
+          </section>
+        )}
+
         {!loadingExistingBill && existingBill && existingBillItems.length > 0 && (
           <ExistingBillPanel
             existingBillItems={existingBillItems}

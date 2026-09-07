@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Download, Printer, QrCode, Settings } from 'lucide-react';
+import CustomerNoticeManager from '../components/CustomerNoticeManager';
 import PaymentQRManager from '../components/PaymentQRManager';
 import TableQRCode from '../components/TableQRCode';
 import { EmptyState, PageHeader, SurfaceCard } from '../components/ui';
@@ -147,6 +148,8 @@ const QRCodeManager = () => {
           </div>
         </SurfaceCard>
       )}
+
+      <CustomerNoticeManager />
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <SurfaceCard>

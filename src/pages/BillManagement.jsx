@@ -579,8 +579,8 @@ const BillManagement = () => {
 
       {changingTableBill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[80vh] w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-[var(--shadow-modal)]">
-            <div className="flex items-start justify-between gap-3 border-b border-[color:var(--border-subtle)] p-4">
+          <div className="flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-xl bg-white shadow-[var(--shadow-modal)]">
+            <div className="shrink-0 flex items-start justify-between gap-3 border-b border-[color:var(--border-subtle)] p-4">
               <div>
                 <h3 className="flex items-center gap-2 text-lg font-bold text-gray-950">
                   <ArrowLeftRight size={18} className="text-purple-600" />
@@ -600,9 +600,9 @@ const BillManagement = () => {
               </button>
             </div>
 
-            <div className="p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {getEmptyTablesForChange().length > 0 ? (
-                <div className="space-y-2 overflow-y-auto">
+                <div className="space-y-2">
                   {getEmptyTablesForChange().map((table) => (
                     <button
                       key={table.id}

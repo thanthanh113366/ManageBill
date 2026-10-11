@@ -1,28 +1,29 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { AppProvider, useApp } from './context/AppContext';
-import Layout from './components/Layout';
-import PasswordGate from './components/PasswordGate';
-import CreateBill from './pages/CreateBill';
-import MenuManagement from './pages/MenuManagement';
-import BillManagement from './pages/BillManagement';
-import Reports from './pages/Reports';
-import DishAnalysis from './pages/DishAnalysis';
-import QRCodeManager from './pages/QRCodeManager';
-import PublicBill from './pages/PublicBill';
-import CustomerOrder from './pages/CustomerOrder';
-import OrderSuccess from './pages/OrderSuccess';
-import TakeawayOrder from './pages/TakeawayOrder';
-import DailyExpenses from './pages/DailyExpenses';
-import MonthlyFixedCosts from './pages/MonthlyFixedCosts';
-import ExpenseCategories from './pages/ExpenseCategories';
 import { initVoiceOrderMetrics } from './utils/voiceOrderMetrics';
 
 import './index.css';
+
+const Layout = lazy(() => import('./components/Layout'));
+const PasswordGate = lazy(() => import('./components/PasswordGate'));
+const CreateBill = lazy(() => import('./pages/CreateBill'));
+const MenuManagement = lazy(() => import('./pages/MenuManagement'));
+const BillManagement = lazy(() => import('./pages/BillManagement'));
+const Reports = lazy(() => import('./pages/Reports'));
+const DishAnalysis = lazy(() => import('./pages/DishAnalysis'));
+const QRCodeManager = lazy(() => import('./pages/QRCodeManager'));
+const PublicBill = lazy(() => import('./pages/PublicBill'));
+const CustomerOrder = lazy(() => import('./pages/CustomerOrder'));
+const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
+const TakeawayOrder = lazy(() => import('./pages/TakeawayOrder'));
+const DailyExpenses = lazy(() => import('./pages/DailyExpenses'));
+const MonthlyFixedCosts = lazy(() => import('./pages/MonthlyFixedCosts'));
+const ExpenseCategories = lazy(() => import('./pages/ExpenseCategories'));
 
 // Init OTLP metrics nếu có env (fire-and-forget)
 initVoiceOrderMetrics().catch(() => {});
@@ -84,7 +85,9 @@ const Root = () => {
   return (
     <Router>
       <AppProvider>
-        <App />
+        <Suspense fallback={<div className="min-h-screen bg-[var(--bg-app)]" />}>
+          <App />
+        </Suspense>
         <ToastContainer
           position="top-right"
           autoClose={3000}
@@ -108,4 +111,4 @@ root.render(
   <React.StrictMode>
     <Root />
   </React.StrictMode>
-); 
+);
